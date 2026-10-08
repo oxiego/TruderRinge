@@ -1,9 +1,3 @@
-Hier ist das vollständig überarbeitete und erweiterte **Software-Architekturdokument (`Grundarchitektur.md`)**.
-
-Es enthält nun die flexiblen Ingestion-Strategien für den **Offline-/Tagesabschluss-Import** (WM-Shot `.wmk`, OpticScore XML) als primäre Wege sowie die **JSON-Live-Schnittstelle** als Fallback, die **dynamische wöchentliche Klassen- & Kontingent-Steuerung** (Fleischpreis vs. Pokal per Klasse) sowie das erweiterte **Schießspiele-Modul** (Er-und-Sie, Ostern, Martini, Nikolaus).
-
----
-
 # Software-Architekturdokument: TruderRinge (v2.0)
 
 **Projekt:** TruderRinge – Nachfolger für Schuetzenliste
