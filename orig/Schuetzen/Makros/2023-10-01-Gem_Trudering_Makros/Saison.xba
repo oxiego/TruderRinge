@@ -1,0 +1,626 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Saison" script:language="StarBasic">REM ***** Makros zum Beginn / Abschluß / Löschen einer Saison *****
+
+REM ***** Variablen für den Dialog *****
+Private oPBSaisonListener1
+Private oPBSaisonListener2
+Private oSaisonDialog As Object
+
+Private nSaison As Integer
+Private bCancel As Boolean
+
+Sub Saison_beginnen
+
+	REM ***** Makro um eine neue Saison zu beginnen *****
+
+	Dim nYear As Integer
+	Dim nJahrgang As Integer
+
+	REM ***** Überprüfe ob eine laufende Saison vorhanden ist *****
+	REM ***** Wenn Saison &gt; 0, dann laufende Saison vorhanden *****
+	If getSaison() &gt; 0 Then
+
+		MsgBox &quot;Saison &quot;+ gSaison +&quot; wurde noch nicht abgeschlossen!&quot;, 48, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn keine Saison gefunden wurde *****
+		Exit Sub
+	
+	End If
+	
+	REM ***** Aktuelle Jahreszahl ermitteln
+	nYear = Format(Date, &quot;YYYY&quot;)
+
+	Do
+	
+		REM ***** Initialsisiere Variable
+		nSaison = 0
+		bCancel = FALSE
+
+		REM ***** Rufe Dialog für Bezeichnung Saison auf
+		Call Dialog_Saison(nYear)
+		
+		REM ***** Schaltfläche Abbruch wurde geklickt.
+		If bCancel Then
+			Exit Sub
+		End If
+
+		REM ***** Überprüfe ob Saisonname schon vorhanden ist
+		Query = &quot;SELECT * FROM &quot;&quot;Saison&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; nSaison &amp;&quot;&quot;
+		ResultSet = Statement.executeQuery(Query)
+		
+		ResultSet.last()
+		
+		REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+		If ResultSet.getrow() &gt; 0 Then
+
+			REM ***** Bezeichnung schon vorhanden
+			MsgBox &quot;Es gibt schon eine Saison &quot; + nSaison + &quot; !&quot;, MB_ICONEXCLAMATION, &quot;Achtung&quot;
+
+			nSaison = 0
+		End If
+		
+	Loop While nSaison = 0
+
+	REM ***** Berechne Jahrgang für Jugendklassen
+	REM ***** Aktuelles Jahr - 17
+	nJahrgang = nYear - 17
+
+	REM ***** Neuen Eintrag in Tabelle &quot;Saison&quot; erzeugen
+	Query = &quot;INSERT INTO &quot;&quot;Saison&quot;&quot; (&quot;&quot;Saison&quot;&quot;, &quot;&quot;Aktiv&quot;&quot;, &quot;&quot;Auswertung_LG&quot;&quot;, &quot;&quot;Auswertung_LP&quot;&quot;) VALUES (&quot;&amp; nSaison &amp;&quot;, TRUE, FALSE, FALSE)&quot;
+	Statement.executeUpdate(Query)
+
+	REM ***** Setze globale Variable
+	gSaison = nSaison
+	
+	REM *****Aktualisiere Jahrgang der Jugendklassen in Tabelle Schuetzenklassen
+	Query = &quot;UPDATE &quot;&quot;Schuetzenklassen&quot;&quot; SET &quot;&quot;Jahrgang&quot;&quot; = &quot;&amp; nJahrgang &amp;&quot; WHERE &quot;&quot;Jugendklasse&quot;&quot; = &apos;True&apos;&quot;
+	Statement.executeUpdate(Query)
+
+	REM ***** Rufe Funktion zum Löschen alle Saisontabellen für Fleisch und Geldpreise 
+	Call deleteTables()
+
+	MsgBox &quot;Saison &quot; + nSaison + &quot; erfolgreich erzeugt!&quot; + Chr$(13) + &quot; Jahrgang für Jugend: &quot;  + nJahrgang, 64, &quot;Hinweis&quot;
+
+	REM ***** Speichere Daten auf Disk *****
+	&apos;DataSource.flush
+
+End Sub
+
+Sub Dialog_Saison(ByVal Year As Integer)
+	
+	REM ***** Zeigt Eingabedialog für die Saison Bezeichnung an *****
+	Dim oDialogModel As Object
+	Dim oWindow As Object
+	Dim oModel As Object
+	Dim oEvent1 As Object
+	Dim oEvent2 As Object
+	
+	REM ***** Initialisierung der Eigenschaften des Dialogs
+	oDialogModel = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialogModel&quot;)
+	With oDialogModel
+		.setPropertyValue(&quot;PositionX&quot;, 270)
+		.setPropertyValue(&quot;PositionY&quot;, 150 )
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 11)
+		.setPropertyValue(&quot;Height&quot;, Fontsize * 5)
+		.setPropertyValue(&quot;Title&quot;, &quot;Bezeichnung Saison&quot;)
+	End With
+	
+	oSaisonDialog = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialog&quot;)
+	
+	REM ***** Textlabel erzeugen
+	oModel = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oModel
+		.setPropertyValue(&quot;Label&quot;, &quot;Saison:&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelSN&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, Fontsize + 15)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 10)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelSN&quot;, oModel)
+	
+	REM ***** Numerisches Feld erzeugen
+	oModel = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlNumericFieldModel&quot;)
+	With oModel
+		.setPropertyValue(&quot;Border&quot;, 2)
+		.setPropertyValue(&quot;ValueMin&quot;, 0)
+		.setPropertyValue(&quot;DecimalAccuracy&quot;, 0)
+		.setPropertyValue(&quot;Value&quot;, Year)
+		.setPropertyValue(&quot;Name&quot;, &quot;NF_Saison&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, (Fontsize * 6))
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;StrictFormat&quot;, True)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize + 16)
+	End With
+	
+	oDialogModel.insertByName(&quot;NF_Saison&quot;, oModel)
+	
+	REM ***** Pushbutton erzeugen
+	oModel = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oModel
+		.setPropertyValue(&quot;Label&quot;, &quot;Weiter&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB1&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2 - (2 * Fontsize + 22)))
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB1&quot;, oModel)
+	
+	REM ***** Pushbutton erzeugen
+	oModel = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oModel
+		.setPropertyValue(&quot;Label&quot;, &quot;Abbruch&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB2&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width /2) + 2)
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB2&quot;, oModel)
+	
+	oSaisonDialog.setModel(oDialogModel)
+	
+	REM ***** Listener für den Weiter-Button
+	oPBSaisonListener1 = createUnoListener(&quot;PB1_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oSaisonDialog.getControl(&quot;PB1&quot;)
+	oControl.addActionListener(oPBSaisonListener1)
+	
+	REM ***** Listener für den Ende-Button
+	oPBSaisonListener2 = createUnoListener(&quot;PB2_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oSaisonDialog.getControl(&quot;PB2&quot;)
+	oControl.addActionListener(oPBSaisonListener2)
+	
+	REM ***** Mittels des Modells den Dialog anzeigen
+	oWindow = CreateUnoService(&quot;com.sun.star.awt.Toolkit&quot;)
+	oSaisonDialog.createPeer(oWindow, null)
+	oSaisonDialog.execute()
+
+End Sub
+
+Sub PB1_actionPerformed(oEvent1)
+	
+	REM ***** Die Aktion des Listeners für den Weiter-Button
+
+	Dim oDialogField As Object
+	
+	REM *****Entfernen der Listener 
+	oSaisonDialog.getControl(&quot;PB1&quot;).removeActionListener(oPBSaisonListener1)
+	oSaisonDialog.getControl(&quot;PB2&quot;).removeActionListener(oPBSaisonListener2)
+
+	REM *****Schliessen des Dialogs
+	oSaisonDialog.EndExecute()
+
+	REM ***** Textfield-Status im Dialog ansprechen
+	oDialogField = oSaisonDialog.getControl(&quot;NF_Saison&quot;)
+	
+	REM ***** Textfield im Dialog auslesen
+	nSaison = oDialogField.Text
+
+End Sub
+
+Sub PB2_actionPerformed(oEvent2)
+
+	REM ***** Die Aktion des Listeners für den Ende-Button
+
+	REM ***** Entfernen der Listener 
+	oSaisonDialog.getControl(&quot;PB1&quot;).removeActionListener(oPBSaisonListener1)
+	oSaisonDialog.getControl(&quot;PB2&quot;).removeActionListener(oPBSaisonListener2)
+	
+	REM ***** Schliessen des Dialogs
+	oSaisonDialog.EndExecute()
+	
+	bCancel = TRUE
+	
+End Sub
+
+Sub deleteTables
+	REM ***** Löscht Saison-Tabellen für Fleisch und Geldpreise_Bericht
+	
+	REM ***** TABELLE &quot;Fleischpreise_Anzahl&quot; leeren *****
+	Query = &quot;DELETE FROM &quot;&quot;Fleischpreise_Anzahl&quot;&quot;&quot;
+	Statement.executeUpdate(Query)
+	
+	REM ***** TABELLE &quot;Fleischpreise_Anzahl&quot; leeren *****
+	Query = &quot;DELETE FROM &quot;&quot;Fleischpreise_Ergebnisse_Schiesstag&quot;&quot;&quot;
+	Statement.executeUpdate(Query)
+	
+	REM ***** TABELLE &quot;Fleischpreise_Saison&quot; leeren *****
+	Query = &quot;DELETE FROM &quot;&quot;Fleischpreise_Saison&quot;&quot;&quot;
+	Statement.executeUpdate(Query)
+	
+	REM ***** TABELLE &quot;Fleischpreise_Schiesstag&quot; leeren *****
+	Query = &quot;DELETE FROM &quot;&quot;Fleischpreise_Schiesstag&quot;&quot;&quot;
+	Statement.executeUpdate(Query)
+
+	REM ***** TABELLE &quot;LG_Geldpreise_Bericht&quot; leeren *****
+	Query = &quot;DELETE FROM &quot;&quot;LG_Geldpreise_Bericht&quot;&quot;&quot;
+	Statement.executeUpdate(Query)
+
+	REM ***** TABELLE &quot;LG_Geldpreise_Bericht&quot; leeren *****
+	Query = &quot;DELETE FROM &quot;&quot;LP_Geldpreise_Bericht&quot;&quot;&quot;
+	Statement.executeUpdate(Query)
+
+	REM ***** TABELLE &quot;Temp_Preisverteilung&quot; leeren *****
+	Query = &quot;DELETE FROM &quot;&quot;Temp_Preisverteilung&quot;&quot;&quot;
+	Statement.executeUpdate(Query)
+
+	REM ***** TABELLE &quot;Temp_Schuetzen&quot; leeren *****
+	Query = &quot;DELETE FROM &quot;&quot;Temp_Schuetzen&quot;&quot;&quot;
+	Statement.executeUpdate(Query)
+
+End Sub
+
+Sub Saison_abschliessen
+
+	REM ***** Makro um eine laufende Saison abzuschließen *****
+
+	Dim nSaison_Vorjahr As Integer
+	Dim nZaehler As Integer
+	Dim n As Integer
+	Dim mSchuetze()
+	
+	REM ***** Überprüfe ob eine laufende Saison vorhanden ist *****
+	REM ***** Wenn Saison &gt; 0, dann laufende Saison vorhanden *****
+	If getSaison() = 0 Then
+
+		MsgBox &quot;Keine Saison zum Abschließen gefunden!&quot;, 16, &quot;Fehler&quot;
+
+		Exit Sub
+		
+	End If
+
+	REM ***** Überprüfe ob Saisonauswertung durchgeführt wurde 
+	Query = &quot;SELECT &quot;&quot;Auswertung_LG&quot;&quot;, &quot;&quot;Auswertung_LP&quot;&quot; FROM &quot;&quot;Saison&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;	
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	If ResultSet.getBoolean(1) = 0 Then
+	
+		MsgBox &quot;Auswertung Luftgewehr wurde noch nicht durchgeführt!&quot;, 16, &quot;Fehler&quot;
+		
+		Exit Sub
+		
+	End If
+
+	If (ResultSet.getBoolean(2) = FALSE) Then
+	
+		MsgBox &quot;Auswertung Luftpistole wurde noch nicht durchgeführt!&quot;, 16, &quot;Fehler&quot;
+		
+		Exit Sub
+		
+	End If
+
+	REM ***** Sicherheitsabfrage anzeigen *****
+	If MsgBox (&quot;Soll Saisonabschluss für die Saison &quot;+ gSaison +&quot; durchführt werden?&quot;, 256 + 32 + 4, &quot;Achtung&quot;) = 6 Then
+
+		REM ***** Ermittle die Saison des Vorjahres *****
+		Query = &quot;SELECT MAX(&quot;&quot;Saison&quot;&quot;) FROM &quot;&quot;Saison&quot;&quot; AS &quot;&quot;Saison&quot;&quot; GROUP BY &quot;&quot;Aktiv&quot;&quot; HAVING (&quot;&quot;Aktiv&quot;&quot; = FALSE)&quot;
+		ResultSet = Statement.executeQuery(Query)
+	
+		ResultSet.last()
+	
+		REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+		If ResultSet.getrow() &gt; 0 Then
+		
+			nSaison_Vorjahr = ResultSet.getInt(1)
+			
+		End If
+	
+		REM ***** Suche alle aktiven LG-Schuetzen 
+		Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;LG_Vorjahresschnitt&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;LG&quot;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE&quot;	
+		ResultSet = Statement.executeQuery(Query)
+	
+		ResultSet.last()
+		nZaehler = ResultSet.getrow()
+	
+		If nZaehler &gt; 0 Then
+		
+			ReDim mSchuetze(nZaehler - 1,1)
+	
+			For n = 1 to nZaehler
+		
+				REM ***** Speichere Schuetzen in Array
+				ResultSet.absolute(n)
+		
+				mSchuetze(n-1,0) = ResultSet.getInt(1)
+				mSchuetze(n-1,1) = ResultSet.getDouble(2)
+	
+			Next n
+	
+			For n = 0 to nZaehler - 1
+			
+				REM ***** Kopiere alle Vorjahresschnitte nach &quot;LG_Jahresschnitt&quot; *****
+				Query = &quot;INSERT INTO &quot;&quot;LG_Jahresschnitt&quot;&quot; (&quot;&quot;Saison&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Jahresschnitt&quot;&quot;) VALUES (&quot;&amp; nSaison_Vorjahr &amp;&quot;, &quot;&amp; mSchuetze(n,0) &amp;&quot;, &quot;&amp; Str(mSchuetze(n,1)) &amp;&quot;)&quot;
+				Statement.executeUpdate(Query)
+	
+			Next n
+		End If
+	
+		REM ***** Lese aktuelle Jahresschnitte aus 
+		Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Jahresschnitt&quot;&quot; FROM &quot;&quot;LG_Vereinsmeister&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; AND &quot;&quot;Jahresschnitt&quot;&quot; &gt; 0&quot;	
+		ResultSet = Statement.executeQuery(Query)
+	
+		ResultSet.last()
+		nZaehler = ResultSet.getrow()
+	
+		If nZaehler &gt; 0 Then
+		
+			ReDim mSchuetze(nZaehler - 1,2)
+	
+			For n = 1 to nZaehler
+		
+				REM ***** Speichere Schuetzen in Array
+				ResultSet.absolute(n)
+		
+				mSchuetze(n-1,0) = ResultSet.getInt(1)
+				mSchuetze(n-1,1) = ResultSet.getDouble(2)
+	
+			Next n
+	
+			For n = 0 to nZaehler - 1
+			
+				REM ***** Kopiere alle Vorjahresschnitte nach &quot;LG_Jahresschnitt&quot; *****
+				Query = &quot;UPDATE &quot;&quot;Schuetzen&quot;&quot; SET &quot;&quot;LG_Vorjahresschnitt&quot;&quot; = &quot;&amp; Str(mSchuetze(n,1)) &amp;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(n,0) &amp;&quot;&quot;
+				Statement.executeUpdate(Query)
+			Next n
+		End If
+	
+		REM ***** Suche alle aktiven LP-Schuetzen 
+		Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;LP_Vorjahresschnitt&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;LP&quot;&quot; = &apos;True&apos; AND &quot;&quot;Aktiv&quot;&quot; = &apos;True&apos;&quot;	
+		ResultSet = Statement.executeQuery(Query)
+	
+		ResultSet.last()
+		nZaehler = ResultSet.getrow()
+	
+		If nZaehler &gt; 0 Then
+		
+			ReDim mSchuetze(nZaehler - 1,2)
+	
+			For n = 1 to nZaehler
+		
+				REM ***** Speichere Schuetzen in Array
+				ResultSet.absolute(n)
+		
+				mSchuetze(n-1,0) = ResultSet.getInt(1)
+				mSchuetze(n-1,1) = ResultSet.getDouble(2)
+	
+			Next n
+	
+			For n = 0 to nZaehler - 1
+			
+				REM ***** Kopiere alle Vorjahresschnitte nach &quot;LP_Jahresschnitt&quot; *****
+				Query = &quot;INSERT INTO &quot;&quot;LP_Jahresschnitt&quot;&quot; (&quot;&quot;Saison&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Jahresschnitt&quot;&quot;) VALUES (&quot;&amp; nSaison_Vorjahr &amp;&quot;, &quot;&amp; mSchuetze(n,0) &amp;&quot;, &quot;&amp; Str(mSchuetze(n,1)) &amp;&quot;)&quot;
+				Statement.executeUpdate(Query)
+			Next n
+		End If
+	
+		REM ***** Lese aktuelle Jahresschnitte aus 
+		Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Jahresschnitt&quot;&quot; FROM &quot;&quot;LP_Vereinsmeister&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; AND &quot;&quot;Jahresschnitt&quot;&quot; &gt; 0&quot;	
+		ResultSet = Statement.executeQuery(Query)
+	
+		ResultSet.last()
+		nZaehler = ResultSet.getrow()
+	
+		If nZaehler &gt; 0 Then
+		
+			ReDim mSchuetze(nZaehler - 1,2)
+	
+			For n = 1 to nZaehler
+		
+				REM ***** Speichere Schuetzen in Array
+				ResultSet.absolute(n)
+		
+				mSchuetze(n-1,0) = ResultSet.getInt(1)
+				mSchuetze(n-1,1) = ResultSet.getDouble(2)
+	
+			Next n
+	
+			For n = 0 to nZaehler - 1
+			
+				REM ***** Kopiere alle Vorjahresschnitte nach &quot;LP_Jahresschnitt&quot; *****
+				Query = &quot;UPDATE &quot;&quot;Schuetzen&quot;&quot; SET &quot;&quot;LP_Vorjahresschnitt&quot;&quot; = &quot;&amp; Str(mSchuetze(n,1)) &amp;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(n,0) &amp;&quot;&quot;
+				Statement.executeUpdate(Query)
+			Next n
+		End If
+	
+		REM ***** Suche nach letzten Schiesstag in aktueller Saison
+		Query = &quot;SELECT &quot;&quot;Datum&quot;&quot; FROM &quot;&quot;Schiesstage&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = SELECT MAX(&quot;&quot;Schiesstag&quot;&quot;) FROM &quot;&quot;Schiesstage&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		ResultSet = Statement.executeQuery(Query)
+	
+		ResultSet.last()
+		nZaehler = ResultSet.getrow()
+			
+		REM ***** Speichere Ergebnis
+		Schiesstag_Datum = ResultSet.getString(1)
+	
+		REM ***** Schiesse Saison ab *****
+		Query = &quot;UPDATE &quot;&quot;Saison&quot;&quot; SET &quot;&quot;Ende&quot;&quot; = {D &apos;&quot;&amp; Schiesstag_Datum &amp;&quot;&apos;}, &quot;&quot;Aktiv&quot;&quot; = &apos;False&apos; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+		
+		MsgBox &quot;Saison &quot; + gSaison + &quot; wurde abgeschlossen!&quot;, 64, &quot;Hinweis&quot;
+	
+		REM ***** Speichere Daten auf Disk *****
+		&apos;DataSource.flush
+
+	End If
+
+End Sub
+
+Sub Saison_loeschen
+
+	REM ***** Makro um die Daten der laufenden Saison in der Datenbank zu löschen *****
+	REM ***** Wird nur für die Entwicklung und zum Testen der Makros verwendet *****
+	
+	REM ***** Überprüfe ob eine laufende Saison vorhanden ist *****
+	REM ***** Wenn Saison &gt; 0, dann laufende Saison vorhanden *****
+	If getSaison() = 0 Then
+
+		MsgBox &quot;Keine Saison zum Löschen gefunden!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn keine Saison gefunden wurde *****
+		Exit Sub
+	
+	End If
+	
+	REM ***** Sicherheitsabfrage anzeigen *****
+	If MsgBox (&quot;Saison &quot; + gSaison + &quot; wirklich löschen?&quot;, 256 + 16 + 4, &quot;Achtung&quot;) = 6 Then
+
+		REM ***** TABELLE &quot;Fleischpreise_Anzahl&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;Fleischpreise_Anzahl&quot;&quot;&quot;
+		Statement.executeUpdate(Query)
+		
+		REM ***** TABELLE &quot;Fleischpreise_Anzahl&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;Fleischpreise_Ergebnisse_Schiesstag&quot;&quot;&quot;
+		Statement.executeUpdate(Query)
+		
+		REM ***** TABELLE &quot;Fleischpreise_Saison&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;Fleischpreise_Saison&quot;&quot;&quot;
+		Statement.executeUpdate(Query)
+		
+		REM ***** TABELLE &quot;Fleischpreise_Schiesstag&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;Fleischpreise_Schiesstag&quot;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Geldpreise_Bericht&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Geldpreise_Bericht&quot;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Geldpreise_Bericht&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Geldpreise_Bericht&quot;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;Temp_Preisverteilung&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;Temp_Preisverteilung&quot;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;Temp_Schuetzen&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;Temp_Schuetzen&quot;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Einteilung_Klassen&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Ergebnisse_Schiesstag&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Ergebnisse_Schiesstag&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Geldpreise&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Geldpreise&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Geldpreise_Saison&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Geldpreise_Saison&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Koenigsschiessen&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Koenigsschiessen&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Pokalteiler&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Pokalteiler&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Diepold_WP&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Diepold_WP&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Roehrner_WP&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Roehrner_WP&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Schmankerlpokal&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Schmankerlpokal&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Schuetzen_BerichtP&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Schuetzen_Bericht&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Serien&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Serien&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LG_Vereinsmeister&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Vereinsmeister&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LP_Einteilung_Klassen&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LP_Ergebnisse_Schiesstag&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Ergebnisse_Schiesstag&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LP_Geldpreise&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Geldpreise&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LP_Geldpreise_Saison&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Geldpreise_Saison&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LP_Jahresschnitt&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Jahresschnitt&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LP_Koenigsschiessen&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Koenigsschiessen&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LP_Pokalteiler&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Pokalteiler&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LP_Schuetzen_Bericht&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Schuetzen_Bericht&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LP_Serien&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Serien&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;LP_Vereinsmeister&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Vereinsmeister&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;Schiesstage&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;Schiesstage&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		REM ***** TABELLE &quot;Saison&quot; leeren *****
+		Query = &quot;DELETE FROM &quot;&quot;Saison&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+	
+		MsgBox &quot;Saison &quot;+ gSaison +&quot; gelöscht!&quot;, 64, &quot;Hinweis&quot;
+	
+		gSaison = 0
+		
+		REM ***** Speichere Daten auf Disk *****
+		&apos;DataSource.flush
+
+	End If
+
+End Sub
+</script:module>

@@ -1,0 +1,718 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Schuetzenerfassung" script:language="StarBasic">REM ***** Makros zur Erfassen von neuen Schuetzen *****
+
+REM ***** Variablen für den Dialog *****
+Private oPBSchuetzeListener1
+Private oPBSchuetzeListener2
+Private oSchuetzeDialog As Object
+
+Private	mSchuetze(9) As Variant
+Private bCancel As Boolean
+
+REM ***** Makro für das Erfassen eines neuen Schuetzen *****
+Sub Schuetzenerfassung
+
+	REM ***** Rufe Makro zum Initialisieren des Array&apos;s auf *****
+	Call Schuetzendaten_init()
+	
+	REM ***** Initialisiere Variable *****
+	bCancel = FALSE
+
+	REM ***** Rufe Dialog solange auf, bis Ende gedrückt wird *****
+	Do
+
+		REM ***** Dialog für das Erfassen eines neuen Schuetzen aufrufen *****
+		Call Dialog_Schuetzenerfassung()
+
+	Loop While NOT bCancel
+
+	REM ***** Speichere Daten auf Disk *****
+	&apos;DataSource.flush
+
+End Sub
+
+REM ***** Makro zur Eingabe der Schuetzendaten *****
+Sub Dialog_Schuetzenerfassung
+
+	Dim oDialogModel As Object
+	Dim oWindow As Object
+	Dim oMod As Object
+	Dim oEvent1
+	Dim oEvent2
+	
+	Dim value As Integer
+
+	REM ***** Initialisierung der Eigenschaften des Dialogs *****
+	oDialogModel = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialogModel&quot;)
+	With oDialogModel
+		.setPropertyValue(&quot;Title&quot;, &quot;Schützendaten eingeben&quot;)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, 50)
+		.setPropertyValue(&quot;PositionY&quot;, 50 )
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 19)
+		.setPropertyValue(&quot;Height&quot;, (Fontsize * 3) + (9 * (Fontsize + 5)))
+	End With
+	
+	oSchuetzeDialog = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialog&quot;)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Label 1&quot;)
+		.setPropertyValue(&quot;Label&quot;, &quot;Passnummer:&quot;)
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 5)
+		.setPropertyValue(&quot;HelpText&quot;, &quot;Feld leer lassen, wenn 8-stellige Passnummer bekannt!&quot;)
+	End With
+
+	oDialogModel.insertByName(&quot;Label 1&quot;, oMod)
+
+	REM ***** Text Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlNumericFieldModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Passnummer&quot;)
+		.setPropertyValue(&quot;Border&quot;, 2)
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;ValueMin&quot;, 0)
+		.setPropertyValue(&quot;ValueMax&quot;, 99999999)
+		.setPropertyValue(&quot;DecimalAccuracy&quot;, 0)
+		.setPropertyValue(&quot;Value&quot;, mSchuetze(0))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, (Fontsize * 7))
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize + 35)
+	End With
+
+	oDialogModel.insertByName(&quot;Passnummer&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Label 2&quot;)
+		.setPropertyValue(&quot;Label&quot;, &quot;Vorname:&quot;)
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (1 * (Fontsize + 5)))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 5)
+	End With
+
+	oDialogModel.insertByName(&quot;Label 2&quot;, oMod)
+
+	REM ***** Text Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlEditModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Vorname&quot;)
+		.setPropertyValue(&quot;Border&quot;, 2)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;MaxTextLen&quot;, 30)
+		.setPropertyValue(&quot;MultiLine&quot;, False)
+		.setPropertyValue(&quot;Text&quot;, mSchuetze(1))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, (Fontsize * 7))
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (1 * (Fontsize + 5)))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize + 100)
+	End With
+
+	oDialogModel.insertByName(&quot;Vorname&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Label 3&quot;)
+		.setPropertyValue(&quot;Label&quot;, &quot;Nachname:&quot;)
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (2 * (Fontsize + 5)))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 5)
+	End With
+
+	oDialogModel.insertByName(&quot;Label 3&quot;, oMod)
+
+	REM ***** Text Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlEditModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Nachname&quot;)
+		.setPropertyValue(&quot;Border&quot;, 2)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;MaxTextLen&quot;, 30)
+		.setPropertyValue(&quot;MultiLine&quot;, False)
+		.setPropertyValue(&quot;Text&quot;, mSchuetze(2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, (Fontsize * 7))
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (2 * (Fontsize + 5)))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize + 100)
+	End With
+
+	oDialogModel.insertByName(&quot;Nachname&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Label 4&quot;)
+		.setPropertyValue(&quot;Label&quot;, &quot;Geburtsdatum:&quot;)
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (3 * (Fontsize + 5)))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 5)
+		.setPropertyValue(&quot;HelpText&quot;, &quot;Format DD.MM.JJJJ&quot;)
+	End With
+
+	oDialogModel.insertByName(&quot;Label 4&quot;, oMod)
+
+	REM ***** Date Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlDateFieldModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Geburtsdatum&quot;)
+		.setPropertyValue(&quot;Border&quot;, 2)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;DateFormat&quot;, YYYY-MM-DD)
+		.setPropertyValue(&quot;DateMin&quot;, 01011900)
+		.setPropertyValue(&quot;Dropdown&quot;, False)
+		.setPropertyValue(&quot;Spin&quot;, False)
+		.setPropertyValue(&quot;DateShowCentury&quot;, True)
+		.setPropertyValue(&quot;Date&quot;, mSchuetze(3))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, (Fontsize * 7))
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (3 * (Fontsize + 5)))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize + 35)
+	End With
+
+	oDialogModel.insertByName(&quot;Geburtsdatum&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Label 6&quot;)
+		.setPropertyValue(&quot;Label&quot;, &quot;Geschlecht:&quot;)
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (4 * (Fontsize + 5)))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 5)
+		.setPropertyValue(&quot;HelpText&quot;, &quot;männlich/weiblich&quot;)
+	End With
+
+	oDialogModel.insertByName(&quot;Label 6&quot;, oMod)
+
+	REM ***** Anzeige der ListBox vorbereiten *****
+	If mSchuetze(4) = &quot;M&quot; Then
+	
+		value = 0
+
+	ElseIf mSchuetze(4) = &quot;W&quot; Then
+	
+		value = 1
+	Else
+	
+		value = -1
+		
+	End If
+	
+	REM ***** ListBox Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlListBoxModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Geschlecht&quot;)
+		.setPropertyValue(&quot;Border&quot;, 2)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;StringItemList&quot;, Array(&quot;M&quot;, &quot;W&quot;))
+		.setPropertyValue(&quot;Dropdown&quot;, True)
+		.setPropertyValue(&quot;SelectedItems&quot;,Array(value))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, (Fontsize * 7))
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (4 * (Fontsize + 5)))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize + 20)
+	End With
+
+	oDialogModel.insertByName(&quot;Geschlecht&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Label 7&quot;)
+		.setPropertyValue(&quot;Label&quot;, &quot;Luftgewehr:&quot;)
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (5 * (Fontsize + 5)))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 5)
+	End With
+
+	oDialogModel.insertByName(&quot;Label 7&quot;, oMod)
+
+	REM ***** CheckBox Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlCheckBoxModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;LG&quot;)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;State&quot;, mSchuetze(5))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, (Fontsize * 7))
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (5 * (Fontsize + 5)) + 2)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize + 2)
+	End With
+
+	oDialogModel.insertByName(&quot;LG&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Label 8&quot;)
+		.setPropertyValue(&quot;Label&quot;, &quot;Luftpistole:&quot;)
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, Fontsize * 9)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (5 * (Fontsize + 5)))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 5)
+	End With
+
+	oDialogModel.insertByName(&quot;Label 8&quot;, oMod)
+
+	REM ***** CheckBox Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlCheckBoxModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;LP&quot;)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;State&quot;, mSchuetze(6))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, (Fontsize * 15))
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (5 * (Fontsize + 5)) + 2)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize + 2)
+	End With
+
+	oDialogModel.insertByName(&quot;LP&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Label 9&quot;)
+		.setPropertyValue(&quot;Label&quot;, &quot;Fleisch:&quot;)
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (6 * (Fontsize + 5)))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 5)
+	End With
+
+	oDialogModel.insertByName(&quot;Label 9&quot;, oMod)
+
+	REM ***** CheckBox Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlCheckBoxModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Fleisch&quot;)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;State&quot;, mSchuetze(7))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, (Fontsize * 7))
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (6 * (Fontsize + 5)) + 2)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize + 2)
+	End With
+
+	oDialogModel.insertByName(&quot;Fleisch&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Label 10&quot;)
+		.setPropertyValue(&quot;Label&quot;, &quot;Hilfsmittel:&quot;)
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, Fontsize * 9)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (6 * (Fontsize + 5)))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 5)
+		.setPropertyValue(&quot;HelpText&quot;, &quot;Schießt mit Schlinge, Bock, etc.&quot;)
+	End With
+
+	oDialogModel.insertByName(&quot;Label 10&quot;, oMod)
+
+	REM ***** CheckBox Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlCheckBoxModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Hilfsmittel&quot;)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;State&quot;, mSchuetze(8))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, (Fontsize * 15))
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (6 * (Fontsize + 5)) + 2)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize + 2)
+	End With
+
+	oDialogModel.insertByName(&quot;Hilfsmittel&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Label 11&quot;)
+		.setPropertyValue(&quot;Label&quot;, &quot;Aktiv:&quot;)
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (7 * (Fontsize + 5)))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 5)
+	End With
+
+	oDialogModel.insertByName(&quot;Label 11&quot;, oMod)
+
+	REM ***** CheckBox Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlCheckBoxModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;Aktiv&quot;)
+		.setPropertyValue(&quot;Enabled&quot;, False)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;State&quot;, mSchuetze(9))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, (Fontsize * 7))
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize + (7 * (Fontsize + 5)) + 2)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize + 2)
+	End With
+
+	oDialogModel.insertByName(&quot;Aktiv&quot;, oMod)
+
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;PB1&quot;)
+		.setPropertyValue(&quot;Label&quot;, &quot;Speichern&quot;)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2 - (2 * Fontsize + 22)))
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB1&quot;, oMod)
+	
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;PB2&quot;)
+		.setPropertyValue(&quot;Label&quot;, &quot;Abbruch&quot;)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width /2) + 2)
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB2&quot;, oMod)
+	
+	oSchuetzeDialog.setModel(oDialogModel)
+
+	REM ***** Listener für den Speichern-Button *****
+	oPBSchuetzeListener1 = createUnoListener(&quot;PB1_Schuetze_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oSchuetzeDialog.getControl(&quot;PB1&quot;)
+	oControl.addActionListener(oPBSchuetzeListener1)
+	
+	REM ***** Listener für den Abbruch-Button *****
+	oPBSchuetzeListener2 = createUnoListener(&quot;PB2_Schuetze_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oSchuetzeDialog.getControl(&quot;PB2&quot;)
+	oControl.addActionListener(oPBSchuetzeListener2)
+	
+	REM ***** Mittels des Modells den Dialog anzeigen *****
+	oWindow = CreateUnoService(&quot;com.sun.star.awt.Toolkit&quot;)
+	oSchuetzeDialog.createPeer(oWindow, null)
+	oSchuetzeDialog.execute()
+
+End Sub
+
+REM ***** Die Aktion des Listeners für den Speichern-Button *****
+Sub PB1_Schuetze_actionPerformed(oEvent1)
+
+	Dim oDialogField As Object
+
+	REM ***** Entfernen der Listener *****
+	oSchuetzeDialog.getControl(&quot;PB1&quot;).removeActionListener(oPBSchuetzeListener1)
+	oSchuetzeDialog.getControl(&quot;PB2&quot;).removeActionListener(oPBSchuetzeListener2)
+
+	REM ***** Schliessen des Dialogs *****
+	oSchuetzeDialog.EndExecute()
+
+	REM ***** Long-Feld im Dialog ansprechen *****
+	oDialogField = oSchuetzeDialog.getControl(&quot;Passnummer&quot;)
+
+	REM ***** Wert in Array speichern *****
+	mSchuetze(0) = oDialogField.Value
+	
+	REM ***** Text-Feld im Dialog ansprechen *****
+	oDialogField = oSchuetzeDialog.getControl(&quot;Vorname&quot;)
+
+	REM ***** Wert in Array speichern *****
+	mSchuetze(1) = oDialogField.Text
+	
+	REM ***** Text-Feld im Dialog ansprechen *****
+	oDialogField = oSchuetzeDialog.getControl(&quot;Nachname&quot;)
+
+	REM ***** Wert in Array speichern *****
+	mSchuetze(2) = oDialogField.Text
+
+	REM ***** Datum-Feld im Dialog ansprechen *****
+	oDialogField = oSchuetzeDialog.getControl(&quot;Geburtsdatum&quot;)
+
+	REM ***** Wert in Array speichern *****
+	mSchuetze(3) = DateValue(oDialogField.Text)
+
+	REM ***** ListBox-Feld im Dialog ansprechen *****
+	oDialogField = oSchuetzeDialog.getControl(&quot;Geschlecht&quot;)
+
+	REM ***** Wert in Array speichern *****
+	mSchuetze(4) = oDialogField.SelectedItem
+	
+	REM ***** CheckBox-Feld im Dialog ansprechen *****
+	oDialogField = oSchuetzeDialog.getControl(&quot;LG&quot;)
+
+	REM ***** Wert in Array speichern *****
+	mSchuetze(5) = oDialogField.State
+
+	REM ***** CheckBox-Feld im Dialog ansprechen *****
+	oDialogField = oSchuetzeDialog.getControl(&quot;LP&quot;)
+
+	REM ***** Wert in Array speichern *****
+	mSchuetze(6) = oDialogField.State
+
+	REM ***** CheckBox-Feld im Dialog ansprechen *****
+	oDialogField = oSchuetzeDialog.getControl(&quot;Fleisch&quot;)
+
+	REM ***** Wert in Array speichern *****
+	mSchuetze(7) = oDialogField.State
+
+	REM ***** CheckBox-Feld im Dialog ansprechen *****
+	oDialogField = oSchuetzeDialog.getControl(&quot;Hilfsmittel&quot;)
+
+	REM ***** Wert in Array speichern *****
+	mSchuetze(8) = oDialogField.State
+
+	REM ***** CheckBox-Feld im Dialog ansprechen *****
+	oDialogField = oSchuetzeDialog.getControl(&quot;Aktiv&quot;)
+
+	REM ***** Wert in Array speichern *****
+	mSchuetze(9) = oDialogField.State
+
+	REM ***** Rufe Makro zum Prüfen der Daten ein *****
+	Call Schuetzendaten_pruefen()
+	
+End Sub
+
+REM ***** Die Aktion des Listeners für den Abbruch-Button *****
+Sub PB2_Schuetze_actionPerformed(oEvent1)
+
+	REM ***** Entfernen der Listener *****
+	oSchuetzeDialog.getControl(&quot;PB1&quot;).removeActionListener(oPBSchuetzeListener1)
+	oSchuetzeDialog.getControl(&quot;PB2&quot;).removeActionListener(oPBSchuetzeListener2)
+
+	REM ***** Schliessen des Dialogs *****
+	oSchuetzeDialog.EndExecute()
+
+	REM ***** Setzte Variable zum Abbruch des Dialogs *****
+	bCancel = TRUE
+
+End Sub
+
+REM ***** Makro zum Pruefen der eingegebenen Schützendaten *****
+Sub Schuetzendaten_pruefen
+
+	REM ***** Teste ob Feld leer ist und suche nach der niedrigsten SchuetzenID welche mit &apos;9&apos; beginnt *****
+	REM ***** Schützennummern mit &apos;9&apos; am Anfang sind temporäre Nummern, welche verwendet werden, *****
+	REM ***** richtige Passnummer bekannt ist *****
+	If mSchuetze(0) = 0 Then
+
+		Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; LIKE &apos;9*&apos; ORDER BY &quot;&quot;SchuetzenID&quot;&quot; DESC&quot;
+		ResultSet = Statement.executeQuery(Query)
+		
+		ResultSet.last()
+
+		REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+		If ResultSet.getrow() &gt; 0 Then
+
+			REM ***** Schreibe Ergebnis in Variable *****
+			mSchuetze(0) = ResultSet.getDouble(1) - 1
+
+		Else
+
+			REM ***** Schreibe Ergebnis in Variable *****
+			mSchuetze(0) = 99999999
+
+		End If
+
+	REM ***** Überprüfe ob Passnummer bereits vergeben *****
+	Else
+	
+		REM ***** Überprüfe Länge/Wert der Passnummer *****
+		If Len(mSchuetze(0)) &lt;&gt; 8 Then
+		
+			MsgBox &quot;Passnummer falsch!&quot;, 16, &quot;Fehler&quot;
+
+			REM ***** Beende Makro, wenn Fehler gefunden wurde *****
+			Exit Sub
+
+		Else
+
+			Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot; &amp; mSchuetze(0) &amp;&quot;&quot;
+			ResultSet = Statement.executeQuery(Query)
+			
+			ResultSet.last()
+	
+			REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+			If ResultSet.getrow() &gt; 0 Then
+	
+				MsgBox &quot;Passnummer bereits vergeben!&quot;, 16, &quot;Fehler&quot;
+	
+				REM ***** Beende Makro, wenn Fehler gefunden wurde *****
+				Exit Sub
+
+			End If
+
+		End If
+			
+	End If
+
+	REM ***** Überprüfe ob Feld befüllt *****
+	If (mSchuetze(1) = &quot;&quot;) OR (mSchuetze(2) = &quot;&quot;) Then
+
+		MsgBox &quot;Vorname / Nachname nicht befüllt!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn Fehler gefunden wurde *****
+		Exit Sub
+
+	End If
+
+	REM ***** Überprüfe ob Feld befüllt *****
+	If mSchuetze(3) = &quot;&quot; Then
+
+		MsgBox &quot;Geburtsdatum nicht befüllt!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn Fehler gefunden wurde *****
+		Exit Sub
+
+	End If
+
+	REM ***** Überprüfe ob Feld befüllt *****
+	If (mSchuetze(4) &lt;&gt; &quot;M&quot;) AND (mSchuetze(4) &lt;&gt; &quot;W&quot;) Then
+
+		MsgBox &quot;Kein Geschlecht ausgewählt!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn Fehler gefunden wurde *****
+		Exit Sub
+
+	End If
+
+	REM ***** Makro für das Speichern der Daten aufrufen *****
+	Call Schuetzendaten_speichern()
+
+	REM ***** Überprüfe ob eine laufende Saison vorhanden ist *****
+	REM ***** Wenn Saison &gt; 0, dann laufende Saison vorhanden *****
+	If gSaison &gt; 0 Then
+
+		REM ***** Sicherheitsabfrage, ob Tagesauswertung wirklich durchgeführt werden soll *****
+		If MsgBox (&quot;Laufende Saison gefunden!&quot;+ Chr(13) +&quot;Soll Klasseneinteilung durchgeführt werden?&quot;, 256 + 32 + 4, &quot;Hinweis&quot;) = 6 Then
+	
+			
+		End If
+	
+	End If
+
+
+End Sub
+
+REM ***** Makro zum Speichern der Daten *****
+Sub Schuetzendaten_speichern
+
+	Dim sBirthday As String
+
+	REM ***** Schreibe Daten in Tabelle &quot;Schuetzen&quot; *****
+	Query = &quot;INSERT INTO &quot;&quot;Schuetzen&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;,&quot;&quot;Vorname&quot;&quot;,&quot;&quot;Name&quot;&quot;,&quot;&quot;Geburtsdatum&quot;&quot;,&quot;&quot;Geschlecht&quot;&quot;,&quot;&quot;LG&quot;&quot;,&quot;&quot;LP&quot;&quot;,&quot;&quot;Fleisch&quot;&quot;,&quot;&quot;Hilfsmittel&quot;&quot;,&quot;&quot;Aktiv&quot;&quot;) VALUES (&apos;&quot;&amp; mSchuetze(0) &amp;&quot;&apos;, &apos;&quot;&amp; mSchuetze(1) &amp;&quot;&apos;, &apos;&quot;&amp; mSchuetze(2) &amp;&quot;&apos;, {D &apos;&quot;&amp; mSchuetze(3) &amp;&quot;&apos;}, &apos;&quot;&amp; mSchuetze(4) &amp;&quot;&apos;, &quot;&amp; mSchuetze(5) &amp;&quot;, &quot;&amp; mSchuetze(6) &amp;&quot;, &quot;&amp; mSchuetze(7) &amp;&quot;, &quot;&amp; mSchuetze(8) &amp;&quot;, &quot;&amp; mSchuetze(9) &amp;&quot;)&quot; 
+	MsgBox Query
+	Statement.executeUpdate(Query)
+
+	REM ***** Setzte Variable zum Abbruch des Dialogs *****
+	bCancel = TRUE
+
+End Sub
+
+REM ***** Makro zum Initialisieren des Arrays *****
+Sub Schuetzendaten_init
+
+	REM ***** Initialisiere Array *****
+	mSchuetze(4) = &quot;&quot;
+	mSchuetze(9) = 1
+
+End Sub
+</script:module>

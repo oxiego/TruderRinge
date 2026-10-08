@@ -1,0 +1,1593 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Schiessergebnisse" script:language="StarBasic">REM ***** Makros zum Erfassen der Schiessergebnisse eines Schiesstages in der laufenden Saison*****
+
+REM ***** Variablen für den Dialog *****
+Private oPBResultListener1
+Private oPBResultListener2
+Private oPBResultListener3
+Private oPBResultListener4
+Private oPBResultListener5
+Private oPBResultListener6
+Private oPBTeilerListener1
+Private oPBTeilerListener2
+
+Private oResultDialog1 As Object
+Private oResultDialog2 As Object
+Private oResultDialog3 As Object
+Private oTeilerDialog As Object
+
+Private sTyp As String					&apos;Private Variable für den Typ (LG/LP)
+Private nSerien As Integer
+Private mSchuetze() As Variant
+Private bFleisch As Boolean
+Private bCancel As Boolean
+
+REM ***** Makro zur Eingabe der LG Ergebnisse eines Schiesstages *****
+Sub LG_Ergebnisse
+
+	REM ***** Überprüfe ob eine laufende Saison vorhanden ist *****
+	REM ***** Wenn Saison &gt; 0, dann laufende Saison vorhanden *****
+	If getSaison() = 0 Then
+
+		MsgBox &quot;Keine laufende Saison gefunden!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn keine Saison gefunden wurde *****
+		Exit Sub
+
+	End If
+
+	REM ***** Lies Datum des aktuellen Schiesstages aus *****
+	Query = &quot;SELECT &quot;&quot;Datum&quot;&quot; FROM &quot;&quot;Schiesstage&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot; AND &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; &quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		REM ***** Überprüfe ob Datum Schiesstage != Tagesdatum *****
+		If ResultSet.getString(1) &lt;&gt; sDatum Then
+
+			MsgBox &quot;Es wurde noch kein Schiesstag begonnen!&quot;, 16, &quot;Fehler&quot;
+
+			REM ***** Beende Makro, wenn für das heutige Datum noch kein Schiesstag begonnen wurde *****
+			Exit Sub
+
+		End If
+	Else
+	
+		REM ***** Liefert kein Ergebnis beim ersten Schiesstag!!! *****
+		MsgBox &quot;Es wurde noch kein Schiesstag begonnen!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn für das heutige Datum noch kein Schiesstag begonnen wurde *****
+		Exit Sub
+
+	End If
+
+	REM ***** Setzte Variable *****
+	sTyp = &quot;LG&quot;
+
+	REM ***** Initialisiere Variable *****
+	bCancel = FALSE
+
+	REM ***** Rufe Dialog solange auf, bis Ende gedrückt wird *****
+	Do
+
+		REM ***** Dialog für Eingabe Schützennummer aufrufen
+		Call Dialog_Ergebnisse_Schuetzennummer()
+
+	Loop While NOT bCancel
+
+End Sub
+
+REM ***** Makro zur Eingabe der LP Ergebnisse eines Schiesstages *****
+Sub LP_Ergebnisse
+
+	REM ***** Überprüfe ob eine laufende Saison vorhanden ist *****
+	REM ***** Wenn Saison &gt; 0, dann laufende Saison vorhanden *****
+	If getSaison() = 0 Then
+
+		MsgBox &quot;Keine laufende Saison gefunden!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn keine Saison gefunden wurde *****
+		Exit Sub
+
+	End If
+
+	REM ***** Lies Datum des aktuellen Schiesstages aus *****
+	Query = &quot;SELECT &quot;&quot;Datum&quot;&quot; FROM &quot;&quot;Schiesstage&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot; AND &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; &quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		REM ***** Überprüfe ob Datum Schiesstage != Tagesdatum *****
+		If ResultSet.getString(1) &lt;&gt; sDatum Then
+
+			MsgBox &quot;Es wurde noch kein Schiesstag begonnen!&quot;, 16, &quot;Fehler&quot;
+
+			REM ***** Beende Makro, wenn für das heutige Datum noch kein Schiesstag begonnen wurde *****
+			Exit Sub
+
+		End If
+	Else
+	
+		REM ***** Liefert kein Ergebnis beim ersten Schiesstag!!! *****
+		MsgBox &quot;Es wurde noch kein Schiesstag begonnen!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn für das heutige Datum noch kein Schiesstag begonnen wurde *****
+		Exit Sub
+
+	End If
+
+	REM ***** Setzte Variable *****
+	sTyp = &quot;LP&quot;
+
+	REM ***** Initialisiere Variable *****
+	bCancel = FALSE
+
+	REM ***** Rufe Dialog solange auf, bis Ende gedrückt wird *****
+	Do
+
+		REM ***** Dialog für Eingabe Schützennummer aufrufen
+		Call Dialog_Ergebnisse_Schuetzennummer()
+
+	Loop While NOT bCancel
+
+End Sub
+
+REM ***** Dialog für Eingabe der Schützennummer *****
+Sub Dialog_Ergebnisse_Schuetzennummer
+
+	Dim oDialogModel As Object
+	Dim oWindow As Object
+	Dim oMod As Object
+	Dim oEvent1
+	Dim oEvent2
+	
+	REM ***** Initialisierung der Eigenschaften des Dialogs *****
+	oDialogModel = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialogModel&quot;)
+	With oDialogModel
+		.setPropertyValue(&quot;PositionX&quot;, 270)
+		.setPropertyValue(&quot;PositionY&quot;, 150 )
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 11)
+		.setPropertyValue(&quot;Height&quot;, Fontsize * 5)
+		.setPropertyValue(&quot;Title&quot;, sTyp +&quot; Ergebnisse&quot;)
+	End With
+	
+	oResultDialog1 = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialog&quot;)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Schützennummer:&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelSN&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 10)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelSN&quot;, oMod)
+	
+	REM ***** Text Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlEditModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;MaxTextLen&quot;, 2)
+		.setPropertyValue(&quot;MultiLine&quot;, False)
+		.setPropertyValue(&quot;Name&quot;, &quot;TF_SchuetzenNr&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, (Fontsize * 9) - 8)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize + 6)
+	End With
+	
+	oDialogModel.insertByName(&quot;TF_SchuetzenNr&quot;, oMod)
+	
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Weiter&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB1&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2 - (2 * Fontsize + 22)))
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB1&quot;, oMod)
+	
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Ende&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB2&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width /2) + 2)
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB2&quot;, oMod)
+	
+	oResultDialog1.setModel(oDialogModel)
+	
+	REM ***** Listener für den Weiter-Button *****
+	oPBResultListener1 = createUnoListener(&quot;PB1_Result_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oResultDialog1.getControl(&quot;PB1&quot;)
+	oControl.addActionListener(oPBResultListener1)
+	
+	REM ***** Listener für den Ende-Button *****
+	oPBResultListener2 = createUnoListener(&quot;PB2_Result_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oResultDialog1.getControl(&quot;PB2&quot;)
+	oControl.addActionListener(oPBResultListener2)
+	
+	REM ***** Mittels des Modells den Dialog anzeigen *****
+	oWindow = CreateUnoService(&quot;com.sun.star.awt.Toolkit&quot;)
+	oResultDialog1.createPeer(oWindow, null)
+	oResultDialog1.execute()
+
+End Sub
+
+REM ***** Die Aktion des Listeners für den Weiter-Button *****
+Sub PB1_Result_actionPerformed(oEvent1)
+
+	Dim oDialogField As Object
+	Dim sName As String
+	Dim sNumber As String
+	Dim sSchuetzenID As String
+		
+	REM ***** Entfernen der Listener *****
+	oResultDialog1.getControl(&quot;PB1&quot;).removeActionListener(oPBResultListener1)
+	oResultDialog1.getControl(&quot;PB2&quot;).removeActionListener(oPBResultListener2)
+
+	REM ***** Schliessen des Dialogs *****
+	oResultDialog1.EndExecute()
+
+	REM ***** Textfield-Status im Dialog ansprechen *****
+	oDialogField = oResultDialog1.getControl(&quot;TF_SchuetzenNr&quot;)
+	
+	REM ***** Textfield im Dialog auslesen *****
+	sNumber = oDialogField.Text
+
+	REM ***** Suche Namen zu Schützennummer *****
+	Query = &quot;SELECT &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;Name&quot;&quot;, &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;Vorname&quot;&quot; FROM &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;, &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Nummer&quot;&quot; = &apos;&quot;&amp; sNumber &amp;&quot;&apos; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() = 0 Then
+
+		REM ***** Keine Schuetzen gefunden *****
+		MsgBox &quot;Schützennummer &quot;&amp; sNumber &amp;&quot; ist nicht vergeben!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro und kehre zum übergeordneten Makro zurück *****
+		Exit Sub		
+	Else
+
+		sSchuetzenID = ResultSet.getString(1)
+
+		REM ***** Überprüfe ob Schützennummer schon erfasst wurde *****
+		Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot; FROM &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; sSchuetzenID &amp;&quot; AND &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot; AND &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+
+		ResultSet = Statement.executeQuery(Query)
+
+		ResultSet.last()
+		
+		REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+		If ResultSet.getrow() &gt; 0 Then
+		
+			REM ***** Für diesen Schuetzen wurde bereits ein Ergeniss erfasst *****
+			MsgBox &quot;Schützennummer &quot;&amp; sNumber &amp;&quot; wurde bereits erfasst!&quot;, 64, &quot;Hinweis&quot;
+
+			REM ***** Beende Makro und kehre zum übergeordneten Makro zurück *****
+			Exit Sub		
+
+		Else
+
+			REM ***** Suche Namen zu SchützenID *****
+			Query = &quot;SELECT &quot;&quot;Name&quot;&quot;, &quot;&quot;Vorname&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; sSchuetzenID &amp;&quot;&quot;
+			ResultSet = Statement.executeQuery(Query)
+			
+			ResultSet.last()
+		
+			REM ***** Schreibe Ergebnis in Variable *****
+			sName = ResultSet.getString(1) &amp;&quot;, &quot;&amp; ResultSet.getString(2)
+		
+			REM ***** Initialisiere Variable *****
+			bFleisch = FALSE
+		
+			If gFleisch Then
+			
+				REM ***** Lies aus Tabelle, ob Fleisch in Schützenklasse geschossen wird *****
+				Query = &quot;SELECT &quot;&quot;Fleischpreise_Schiesstag&quot;&quot;.&quot;&quot;Fleisch&quot;&quot; FROM &quot;&quot;Fleischpreise_Schiesstag&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;, &quot;&quot;Saison&quot;&quot; WHERE &quot;&quot;Fleischpreise_Schiesstag&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; sSchuetzenID &amp;&quot; AND &quot;&quot;Fleischpreise_Schiesstag&quot;&quot;.&quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+				ResultSet = Statement.executeQuery(Query)
+				
+				ResultSet.last()
+				
+				REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+				If ResultSet.getrow() &gt; 0 Then
+
+					REM ***** Schreibe Ergebnis in Variable *****
+					bFleisch = ResultSet.getBoolean(1)
+
+				End If
+		
+			End If
+		
+			REM *****Lies aus Tabelle, wieviele Serien geschossen werden *****
+			Query = &quot;SELECT &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;Serien&quot;&quot; FROM &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;, &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &apos;&quot;&amp; sSchuetzenID &amp;&quot;&apos; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+			ResultSet = Statement.executeQuery(Query)
+			
+			ResultSet.last()
+		
+			REM ***** Schreibe Ergebnis in Variable *****
+			nSerien = ResultSet.getInt(1)
+		
+			REM ***** Initialisiere Array für die Ergebnisse
+			Redim mSchuetze(nSerien + 7)
+			
+			REM ***** Vorjahresschnitt des Schuetzen auslesen *****
+			Query = &quot;SELECT &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Vorjahresschnitt&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; sSchuetzenID &amp;&quot;&quot;
+			ResultSet = Statement.executeQuery(Query)
+			
+			ResultSet.last()
+		
+			REM ***** Schreibe Daten in Array *****
+			mSchuetze(0) = sSchuetzenID
+			mSchuetze(1) = sNumber
+			mSchuetze(2) = sName
+			mSchuetze(3) = ResultSet.getDouble(1)
+			
+			REM ***** Rufe Dialog zur Eingabe des Ergebnisses auf ***** 
+			Call Dialog_Ergebnis_Erfassen()
+
+		End If
+	End If
+
+End Sub
+
+REM ***** Die Aktion des Listeners für den Ende-Button *****
+Sub PB2_Result_actionPerformed(oEvent2)
+
+	REM ***** Entfernen der Listener *****
+	oResultDialog1.getControl(&quot;PB1&quot;).removeActionListener(oPBResultListener1)
+	oResultDialog1.getControl(&quot;PB2&quot;).removeActionListener(oPBResultListener2)
+
+	REM ***** Schliessen des Dialogs *****
+	oResultDialog1.EndExecute()
+
+	REM ***** Setzte Variable zum Abbruch des Dialogs *****
+	bCancel = TRUE
+
+	REM ***** Speichere Daten auf Disk *****
+	DataSource.flush
+	
+End Sub
+
+REM ***** Dialog für die Erfassung der Schiessergebnisse *****
+Sub Dialog_Ergebnis_Erfassen()
+
+	Dim oDialogModel As Object
+	Dim oWindow As Object
+	Dim oMod As Object
+	Dim oEvent1
+	Dim oEvent2
+	Dim i As Integer
+
+	REM ***** Initialisierung der Eigenschaften des Dialogs *****
+	oDialogModel = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialogModel&quot;)
+	With oDialogModel
+		.setPropertyValue(&quot;PositionX&quot;, 270)
+		.setPropertyValue(&quot;PositionY&quot;, 100 )
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 17)
+		.setPropertyValue(&quot;Height&quot;, (Fontsize * 3) + ((nSerien + 7) * (Fontsize + 5)))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Title&quot;, sTyp +&quot; Ergebnisse&quot;)
+	End With
+	
+	oResultDialog2 = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialog&quot;)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, &quot;Nummer: &quot; &amp; mSchuetze(1))
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelID&quot;)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;PositionX&quot;, 10)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, 50)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelID&quot;, oMod)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, mSchuetze(2))
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelName&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, oDialogModel.Width - 100)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, 90)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelName&quot;, oMod)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, &quot;Vorjahresschnitt: &quot;&amp; Format(mSchuetze(3), &quot;##,##0.00&quot;))
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelSchnitt&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, 10)
+		.setPropertyValue(&quot;PositionY&quot;, INT(Fontsize * 2.5))
+		.setPropertyValue(&quot;Align&quot;, 1)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, oDialogModel.Width - 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelSchnitt&quot;, oMod)
+	
+	REM ***** Linie erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedLineModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;FixedLabel1&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, 10)
+		.setPropertyValue(&quot;PositionY&quot;, INT(Fontsize * 3.5))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, 5)
+		.setPropertyValue(&quot;Width&quot;, oDialogModel.Width - 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;FixedLabel1&quot;, oMod)
+	
+	For i = 1 to nSerien
+			
+		REM ***** Textlabel erzeugen *****
+		oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+		With oMod
+			.setPropertyValue(&quot;Border&quot;, 0)
+			.setPropertyValue(&quot;Label&quot;, &quot;Serie &quot; &amp; i &amp; &quot;:&quot;)
+			.setPropertyValue(&quot;Name&quot;, &quot;Label&quot; &amp; i)
+			.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) - (Fontsize * 3))
+			.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + (i * (Fontsize + 5)))
+			.setPropertyValue(&quot;Align&quot;, 2)
+			.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+			.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+			.setPropertyValue(&quot;FontName&quot;, Font)
+			.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+			.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+			.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+		End With
+	
+		oDialogModel.insertByName(&quot;Label&quot; &amp; i, oMod)
+	
+		REM ***** Numerisches Feld erzeugen *****
+		oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlNumericFieldModel&quot;)
+		With oMod
+			.setPropertyValue(&quot;Border&quot;, 2)
+			.setPropertyValue(&quot;ValueMin&quot;, 0)
+			.setPropertyValue(&quot;ValueMax&quot;, 100)
+			.setPropertyValue(&quot;DecimalAccuracy&quot;, 0)
+			.setPropertyValue(&quot;Name&quot;, &quot;EditMode&quot;&amp; i)
+			.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) + Fontsize)
+			.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + (i * (Fontsize + 5)))
+			.setPropertyValue(&quot;Align&quot;, 2)
+			.setPropertyValue(&quot;FontName&quot;, Font)
+			.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+			.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+			.setPropertyValue(&quot;Width&quot;, 14)
+		End With
+	
+		oDialogModel.insertByName(&quot;EditMode&quot;&amp; i, oMod)
+					
+	Next i
+	
+	REM ***** Linie erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedLineModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;FixedLabel2&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) - (Fontsize * 4))
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + (i * (Fontsize + 5)))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, 5)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 8)
+	End With
+	
+	oDialogModel.insertByName(&quot;FixedLabel2&quot;, oMod)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, &quot;Ergebnis:&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelResult1&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) - (Fontsize * 4))
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + INT((i + 0.5) * (Fontsize + 5)))
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 4)
+	End With
+
+	oDialogModel.insertByName(&quot;LabelResult1&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, &quot;Jahresschnitt:&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelJS1&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) - (Fontsize * 5))
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + INT((i + 1.5) * (Fontsize + 5)))
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 5)
+	End With
+
+	oDialogModel.insertByName(&quot;LabelJS&quot;, oMod)
+
+	REM ***** Zeige Eingabefeld für Pokalteiler an, wenn Luftpistole erfasst wird *****
+	REM ***** und wenn Luftgewehr AND kein Fleisch erfasst wird *****
+	If bFleisch &lt;&gt; TRUE Then
+	
+		REM ***** Textlabel erzeugen *****
+		oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+		With oMod
+			.setPropertyValue(&quot;Border&quot;, 0)
+			.setPropertyValue(&quot;Label&quot;, &quot;Pokal: &quot;)
+			.setPropertyValue(&quot;Name&quot;, &quot;LabelPokal&quot;)
+			.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) - (Fontsize * 7))
+			.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + ((i + 3) * (Fontsize + 5)))
+			.setPropertyValue(&quot;Align&quot;, 2)
+			.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+			.setPropertyValue(&quot;FontName&quot;, Font)
+			.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+			.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+			.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+		End With
+	
+		oDialogModel.insertByName(&quot;LabelPokal&quot;, oMod)
+	
+		REM ***** Numerisches Feld erzeugen *****
+		oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlNumericFieldModel&quot;)
+		With oMod
+			.setPropertyValue(&quot;ValueMin&quot;, 0.0)
+			.setPropertyValue(&quot;ValueMax&quot;, 999.9)
+			.setPropertyValue(&quot;DecimalAccuracy&quot;, 1)
+			.setPropertyValue(&quot;StrictFormat&quot;, True)
+			.setPropertyValue(&quot;Name&quot;, &quot;EditModePokal&quot;)
+			.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) - (Fontsize * 4))
+			.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + ((i + 3) * (Fontsize + 5)))
+			.setPropertyValue(&quot;Align&quot;, 2)
+			.setPropertyValue(&quot;FontName&quot;, Font)
+			.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+			.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+			.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+		End With
+	
+		oDialogModel.insertByName(&quot;EditModePokal&quot;, oMod)
+	
+	End If
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, &quot;2.Prog: &quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelSP&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2))
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + ((i + 3) * (Fontsize + 5)))
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelSP&quot;, oMod)
+	
+	REM ***** Numerisches Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlNumericFieldModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;ValueMin&quot;, 0.0)
+		.setPropertyValue(&quot;ValueMax&quot;, 999.9)
+		.setPropertyValue(&quot;DecimalAccuracy&quot;, 1)
+		.setPropertyValue(&quot;StrictFormat&quot;, True)
+		.setPropertyValue(&quot;Name&quot;, &quot;EditModeSP&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) + (Fontsize * 3))
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + ((i + 3) * (Fontsize + 5)))
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+	End With
+	
+	oDialogModel.insertByName(&quot;EditModeSP&quot;, oMod)
+	
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Weiter&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB3&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2 - (2 * Fontsize + 22)))
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB3&quot;, oMod)
+	
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Abbruch&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB4&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) + 2)
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB4&quot;, oMod)
+	
+	oResultDialog2.setModel(oDialogModel)
+	
+	REM ***** Listener für den Weiter-Button *****
+	oPBResultListener3 = createUnoListener(&quot;PB3_Result_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oResultDialog2.getControl(&quot;PB3&quot;)
+	oControl.addActionListener(oPBResultListener3)
+	
+	REM ***** Listener für den Abbruch-Button *****
+	oPBResultListener4 = createUnoListener(&quot;PB4_Result_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oResultDialog2.getControl(&quot;PB4&quot;)
+	oControl.addActionListener(oPBResultListener4)
+	
+	REM ***** Mittels des Modells den Dialog anzeigen *****
+	oWindow = CreateUnoService(&quot;com.sun.star.awt.Toolkit&quot;)
+	oResultDialog2.createPeer(oWindow, null)
+	oResultDialog2.execute()
+
+End Sub
+
+REM ***** Die Aktion des Listeners für den Weiter-Button *****
+Sub PB3_Result_actionPerformed(oEvent1)
+
+	Dim oDialogField As Object
+	Dim nSumme As Integer
+	Dim sTeiler As String
+	Dim iZaehler As Integer
+	Dim i As Integer
+
+	REM ***** Entfernen der Listener *****
+	oResultDialog2.getControl(&quot;PB3&quot;).removeActionListener(oPBResultListener3)
+	oResultDialog2.getControl(&quot;PB4&quot;).removeActionListener(oPBResultListener4)
+
+	REM ***** Schliessen des Dialogs *****
+	oResultDialog2.EndExecute()
+
+	REM ***** Ergebnisvariable initialisieren *****
+	nSumme = 0
+	
+	REM ***** Lies Ergebnis alle Serien aus und schreibe das Ergebnis in das Array *****
+	For i = 1 to nSerien
+	
+		REM ***** Textfield-Status im Dialog ansprechen *****
+		oDialogField = oResultDialog2.getControl(&quot;EditMode&quot;&amp; i)
+	
+		REM ***** Teste ob Feld leer ist
+		If oDialogField.Text = &quot;&quot; Then
+
+			REM ***** Schreibe 0 in das Array *****
+			mSchuetze(i+3) = 0
+
+		Else
+
+			REM ***** Schreibe Ergebnis in das Array *****
+			mSchuetze(i+3) = Int(oDialogField.Text)
+		
+		End If
+
+		REM ***** Zähle Ergebnisse zusammen *****
+		nSumme = nSumme + Int(oDialogField.Text)
+	
+	Next i
+
+	REM ***** Schreibe Summe in das Array *****
+	mSchuetze(nSerien+4) = nSumme
+
+	REM ***** Rufe Ergebnis für Pokalteiler ab, wenn Luftpistole erfasst wurde *****
+	REM ***** und wenn Luftgewehr AND kein Fleisch erfasst wird *****
+	If bFleisch &lt;&gt; TRUE Then
+
+		REM ***** Numerisches Feld für Pokalteiler im Dialog ansprechen *****
+		oDialogField = oResultDialog2.getControl(&quot;EditModePokal&quot;)
+		
+		REM ***** Schreibe Pokalteiler in das Array *****
+		mSchuetze(nSerien+5) = oDialogField.Value
+
+		REM ***** Überprüfe, ob zulässige Werte eingegeben wurden *****
+		If (mSchuetze(nSerien+5) = 0.0) OR (mSchuetze(nSerien+5) &gt; 999.9) Then
+
+			sTeiler = Format(mSchuetze(nSerien+5), &quot;##,#0.0&quot;)
+
+			If MsgBox (&quot;Bei Pokal wurde &apos;&quot;&amp; sTeiler &amp;&quot;&apos; eingegeben! Soll dieser Teiler übernommen werden?&quot;, 292) = 7 Then
+
+				REM ***** Schreibe Eingabe in das Array *****
+				Call Dialog_Teiler_Erfassen(&quot;Pokal&quot;)
+
+			End If
+
+		End If
+
+	Else
+
+		REM ***** Schreib leeren Wert in das Array, wenn kein Pokal geschossen wurde *****
+		mSchuetze(nSerien+5) = NULL
+
+	End If
+	
+	REM ***** Rufe Ergebnis für Programm_2 ab *****
+
+	REM ***** Numerisches Feld für Programm_2 im Dialog ansprechen *****
+	oDialogField = oResultDialog2.getControl(&quot;EditModeSP&quot;)
+	
+	REM ***** Schreibe Programm_2 in das Array *****
+	mSchuetze(nSerien+6) = oDialogField.Value
+
+	REM ***** Überprüfe, ob zulässige Werte eingegeben wurden *****
+	If (mSchuetze(nSerien+6) = 0.0) OR (mSchuetze(nSerien+6) &gt; 999.9) Then
+
+		sTeiler = Format(mSchuetze(nSerien+6), &quot;##,#0.0&quot;)
+
+		If MsgBox (&quot;Bei Programm_2 wurde &apos;&quot;&amp; sTeiler &amp;&quot;&apos; eingegeben! Soll dieser Teiler übernommen werden?&quot;, 292) = 7 Then
+
+			REM ***** Schreibe Eingabe in das Array *****
+			Call Dialog_Teiler_Erfassen(&quot;2.Prog&quot;)
+
+		End If
+
+	End If
+
+	REM ***** Suche alle Schiessergebnisse des Schuetzen in laufender Saison *****
+	Query = &quot;SELECT &quot;&quot;Ergebnis&quot;&quot; FROM &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(0) &amp;&quot; AND &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot; 
+	ResultSet = Statement.executeQuery(Query)
+	
+	ResultSet.last()
+
+	iZaehler = ResultSet.getrow()
+	
+	REM ***** Zähle die Ergebnisse zu dem aktuellen Ergenis hinzu *****
+	For i = 1 to iZaehler
+	
+		ResultSet.absolute(i)
+
+		nSumme = nSumme + ResultSet.getInt(1)
+	
+	Next i
+
+	mSchuetze(nSerien+7) = nSumme / (iZaehler + 1)
+
+	REM ***** Prüfe ob Ergebnis &lt; Vorjahresschnitt *****
+	If mSchuetze(nSerien+4) &lt; mSchuetze(3) Then
+	
+		REM ***** Rufe Dialog auf, dass der Vorjahresschnitt nicht erreicht wurde *****
+		Call Dialog_Vorjahresschnitt()
+	
+	End If
+	
+	REM ***** Prüfe of Schnapszahl geschossen wurde *****
+	If mSchuetze(nSerien+4) = 333 Then
+	
+		REM ***** Rufe Dialog auf, dass Schnappszahl geschossen wurde *****
+		Call Dialog_Schnapszahl()
+
+	End If
+
+	REM ***** Dialog für Anzeige des Schiessergebnisses aufrufen *****
+	Call Dialog_Ergebnis_Anzeigen()
+
+End Sub
+
+REM ***** Dialog für die Anzeige, dass Schnappszahl geschossen wurde *****
+Sub Dialog_Schnapszahl
+
+	REM ***** Messagebox ausgeben *****
+	Beep
+	MsgBox &quot;Das Auswerte-Team bedankt sich für den Schnaps!&quot;, 64 , &quot;Schnapszahl (333)&quot;
+
+End Sub
+
+
+
+REM ***** Die Aktion des Listeners für den Abbruch-Button *****
+Sub PB4_Result_actionPerformed(oEvent2)
+
+	REM ***** Entfernen der Listener *****
+	oResultDialog2.getControl(&quot;PB3&quot;).removeActionListener(oPBResultListener3)
+	oResultDialog2.getControl(&quot;PB4&quot;).removeActionListener(oPBResultListener4)
+
+	REM ***** Schliessen des Dialogs *****
+	oResultDialog2.EndExecute()
+
+End Sub
+
+REM ***** Dialog für die Anzeige des Schiessergebnisses *****
+Sub Dialog_Ergebnis_Anzeigen
+
+	Dim oDialogModel As Object
+	Dim oWindow As Object
+	Dim oMod As Object
+	Dim oEvent1
+	Dim oEvent2
+
+	REM ***** Initialisierung der Eigenschaften des Dialogs *****
+	oDialogModel = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialogModel&quot;)
+	With oDialogModel
+		.setPropertyValue(&quot;PositionX&quot;, 270)
+		.setPropertyValue(&quot;PositionY&quot;, 100 )
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 17)
+		.setPropertyValue(&quot;Height&quot;, (Fontsize * 3) + ((nSerien + 7) * (Fontsize + 5)))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Title&quot;, sTyp +&quot; Ergebnisse&quot;)
+	End With
+	
+	oResultDialog3 = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialog&quot;)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, &quot;Nummer: &quot; &amp; mSchuetze(1))
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelID&quot;)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;PositionX&quot;, 10)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, 50)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelID&quot;, oMod)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, mSchuetze(2))
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelName&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, oDialogModel.Width - 100)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, 90)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelName&quot;, oMod)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, &quot;Vorjahresschnitt: &quot;&amp; Format(mSchuetze(3), &quot;##,##0.00&quot;))
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelSchnitt&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, 10)
+		.setPropertyValue(&quot;PositionY&quot;, INT(Fontsize * 2.5))
+		.setPropertyValue(&quot;Align&quot;, 1)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, oDialogModel.Width - 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelSchnitt&quot;, oMod)
+	
+	REM ***** Linie erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedLineModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;FixedLabel1&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, 10)
+		.setPropertyValue(&quot;PositionY&quot;, INT(Fontsize * 3.5))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, 5)
+		.setPropertyValue(&quot;Width&quot;, oDialogModel.Width - 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;FixedLabel1&quot;, oMod)
+	
+	For i = 1 to nSerien
+			
+		REM ***** Textlabel erzeugen *****
+		oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+		With oMod
+			.setPropertyValue(&quot;Border&quot;, 0)
+			.setPropertyValue(&quot;Label&quot;, &quot;Serie &quot; &amp; i &amp; &quot;:&quot;)
+			.setPropertyValue(&quot;Name&quot;, &quot;Label&quot; &amp; i)
+			.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) - (Fontsize * 3))
+			.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + (i * (Fontsize + 5)))
+			.setPropertyValue(&quot;Align&quot;, 2)
+			.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+			.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+			.setPropertyValue(&quot;FontName&quot;, Font)
+			.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+			.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+			.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+		End With
+	
+		oDialogModel.insertByName(&quot;Label&quot; &amp; i, oMod)
+	
+		REM ***** Textlabel erzeugen *****
+		oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+		With oMod
+			.setPropertyValue(&quot;Border&quot;, 0)
+			.setPropertyValue(&quot;Label&quot;, Str(mSchuetze(i+3)))
+			.setPropertyValue(&quot;Name&quot;, &quot;EditMode&quot;&amp; i)
+			.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) + Fontsize)
+			.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + (i * (Fontsize + 5)))
+			.setPropertyValue(&quot;Align&quot;, 2)
+			.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+			.setPropertyValue(&quot;FontName&quot;, Font)
+			.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+			.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+			.setPropertyValue(&quot;Width&quot;, 14)
+		End With
+	
+		oDialogModel.insertByName(&quot;EditMode&quot;&amp; i, oMod)
+					
+	Next i
+	
+	REM ***** Linie erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedLineModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;FixedLabel2&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) - (Fontsize * 4))
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + (i * (Fontsize + 5)))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, 5)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 8)
+	End With
+	
+	oDialogModel.insertByName(&quot;FixedLabel2&quot;, oMod)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, &quot;Ergebnis:&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelResult1&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) - (Fontsize * 4))
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + INT((i + 0.5) * (Fontsize + 5)))
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 4)
+	End With
+
+	oDialogModel.insertByName(&quot;LabelResult1&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, Str(mSchuetze(nSerien+4)))
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelResult2&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) + Fontsize)
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + INT((i + 0.5) * (Fontsize + 5)))
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, 14)
+	End With
+
+	oDialogModel.insertByName(&quot;LabelResult2&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, &quot;Jahresschnitt:&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelJS1&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) - (Fontsize * 5))
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + INT((i + 1.5) * (Fontsize + 5)))
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 5)
+	End With
+
+	oDialogModel.insertByName(&quot;LabelJS&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, Format(mSchuetze(nSerien+7), &quot;##,##0.00&quot;))
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelJS2&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) + Fontsize)
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + INT((i + 1.5) * (Fontsize + 5)))
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+	End With
+
+	oDialogModel.insertByName(&quot;LabelJS2&quot;, oMod)
+
+	REM ***** Rufe Ergebnis für Pokalteiler ab, wenn Luftpistole erfasst wurde *****
+	REM ***** und wenn Luftgewehr AND kein Fleisch erfasst wird *****
+	If bFleisch &lt;&gt; TRUE Then
+	
+		REM ***** Textlabel erzeugen *****
+		oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+		With oMod
+			.setPropertyValue(&quot;Border&quot;, 0)
+			.setPropertyValue(&quot;Label&quot;, &quot;Pokal: &quot;)
+			.setPropertyValue(&quot;Name&quot;, &quot;LabelPokal&quot;)
+			.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) - (Fontsize * 7))
+			.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + ((i + 3) * (Fontsize + 5)))
+			.setPropertyValue(&quot;Align&quot;, 2)
+			.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+			.setPropertyValue(&quot;FontName&quot;, Font)
+			.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+			.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+			.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+		End With
+	
+		oDialogModel.insertByName(&quot;LabelPokal&quot;, oMod)
+	
+		REM ***** Textlabel erzeugen *****
+		oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+		With oMod
+			.setPropertyValue(&quot;Label&quot;, Format(mSchuetze(nSerien+5), &quot;##,#0.0&quot;))
+			.setPropertyValue(&quot;Name&quot;, &quot;EditModePokal&quot;)
+			.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) - (Fontsize * 4))
+			.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + ((i + 3) * (Fontsize + 5)))
+			.setPropertyValue(&quot;Align&quot;, 2)
+			.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+			.setPropertyValue(&quot;FontName&quot;, Font)
+			.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+			.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+			.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+		End With
+	
+		oDialogModel.insertByName(&quot;EditModePokal&quot;, oMod)
+	
+	End If
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, &quot;2.Prog: &quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelSP&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2))
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + ((i + 3) * (Fontsize + 5)))
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelSP&quot;, oMod)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, Format(mSchuetze(nSerien+6), &quot;##,#0.0&quot;))
+		.setPropertyValue(&quot;Name&quot;, &quot;EditModeSP&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) + (Fontsize * 3))
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 3) + ((i + 3) * (Fontsize + 5)))
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+	End With
+	
+	oDialogModel.insertByName(&quot;EditModeSP&quot;, oMod)
+	
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Speichern&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB5&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2 - (2 * Fontsize + 22)))
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB5&quot;, oMod)
+	
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Abbruch&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB6&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) + 2)
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB6&quot;, oMod)
+	
+	oResultDialog3.setModel(oDialogModel)
+	
+	REM ***** Listener für den Speichern-Button *****
+	oPBResultListener5 = createUnoListener(&quot;PB5_Result_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oResultDialog3.getControl(&quot;PB5&quot;)
+	oControl.addActionListener(oPBResultListener5)
+	
+	REM ***** Listener für den Abbruch-Button *****
+	oPBResultListener6 = createUnoListener(&quot;PB6_Result_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oResultDialog3.getControl(&quot;PB6&quot;)
+	oControl.addActionListener(oPBResultListener6)
+	
+	REM ***** Mittels des Modells den Dialog anzeigen *****
+	oWindow = CreateUnoService(&quot;com.sun.star.awt.Toolkit&quot;)
+	oResultDialog3.createPeer(oWindow, null)
+	oResultDialog3.execute()
+
+End Sub
+
+REM ***** Die Aktion des Listeners für den Speichern-Button *****
+Sub PB5_Result_actionPerformed(oEvent1)
+
+	Dim i As Integer
+
+	REM ***** Entfernen der Listener *****
+	oResultDialog3.getControl(&quot;PB5&quot;).removeActionListener(oPBResultListener5)
+	oResultDialog3.getControl(&quot;PB6&quot;).removeActionListener(oPBResultListener6)
+
+	REM ***** Schliessen des Dialogs *****
+	oResultDialog3.EndExecute()
+
+	REM ***** Die folgenden Zeilen baut die Query für das Schreiben der Ergebnisse in die Tabelle zusammen *****
+
+	REM ***** Wurde Fleisch geschossen? *****
+	If bFleisch Then
+
+		Query = &quot;INSERT INTO &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot; (&quot;&quot;Saison&quot;&quot;, &quot;&quot;Schiesstag&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Serie1&quot;&quot;, &quot;&quot;Serie2&quot;&quot;, &quot;&quot;Serie3&quot;&quot;, &quot;&quot;Serie4&quot;&quot;, &quot;&quot;Ergebnis&quot;&quot;, &quot;&quot;Programm_2&quot;&quot;) VALUES (&quot;&amp; gSaison &amp;&quot;, &quot;&amp; gSchiesstag &amp;&quot;, &quot;&amp; mSchuetze(0) &amp;&quot;&quot;
+
+	Else
+
+		Query = &quot;INSERT INTO &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot; (&quot;&quot;Saison&quot;&quot;, &quot;&quot;Schiesstag&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Serie1&quot;&quot;, &quot;&quot;Serie2&quot;&quot;, &quot;&quot;Serie3&quot;&quot;, &quot;&quot;Serie4&quot;&quot;, &quot;&quot;Ergebnis&quot;&quot;, &quot;&quot;Pokal&quot;&quot;, &quot;&quot;Programm_2&quot;&quot;) VALUES (&quot;&amp; gSaison &amp;&quot;, &quot;&amp; gSchiesstag &amp;&quot;, &quot;&amp; mSchuetze(0) &amp;&quot;&quot;
+
+	End If
+
+	REM ***** Query für Luftgewehr *****
+	If sTyp = &quot;LG&quot; Then
+
+		REM ***** Ergebnis der Serien *****
+		For i = 1 to nSerien
+	
+			Query = Query &amp; &quot;, &quot;&amp; mSchuetze(i+3)
+	
+		Next i
+
+		REM ***** Fülle restliche Serien auf, falls weniger als 4 Serien geschossen werden *****
+		For i = nSerien + 1  to 4
+
+			Query = Query &amp; &quot;, 00&quot;
+
+		Next i
+
+	REM ***** Query für Luftpistole *****
+	Else
+	
+		For i = 1 to nSerien
+	
+			Query = Query &amp; &quot;, &quot;&amp; mSchuetze(i+3) + mSchuetze(i+4)
+			i = i + 1
+
+		Next i
+
+		REM ***** Fülle restliche Serien auf, falls weniger als 8 Serien geschossen werden *****
+		For i = nSerien / 2 + 1  to 4
+
+			Query = Query &amp; &quot;, 00&quot;
+
+		Next i
+
+	End If
+
+	REM ***** Ergebnis Summe *****
+	Query = Query &amp; &quot;, &quot;&amp; mSchuetze(nSerien+4)
+
+	REM ***** Pokalteiler *****
+	If Not IsNull(mSchuetze(nSerien+5)) Then
+		Query = Query &amp; &quot;, &quot;&amp; Str(mSchuetze(nSerien+5))
+	End If
+
+	REM ***** Programm_2 *****
+	Query = Query &amp; &quot;, &quot;&amp; Str(mSchuetze(nSerien+6))
+
+	REM ***** Schließe Query *****
+	Query = Query &amp; &quot;)&quot;
+	
+	REM ***** Gibt die Query zum Überprüfen auf dem Bildschirm aus *****
+&apos;	MsgBox Query
+	
+	REM ***** Schreibe Daten in Tabelle &quot;LG/LP_Ergebnisse_Schiesstag&quot; *****
+	Statement.executeUpdate(Query)
+
+	REM ***** Speichere Daten auf Disk *****
+	DataSource.flush
+
+End Sub
+
+REM ***** Die Aktion des Listeners für den Abbruch-Button *****
+Sub PB6_Result_actionPerformed(oEvent2)
+
+	REM ***** Entfernen der Listener *****
+	oResultDialog3.getControl(&quot;PB5&quot;).removeActionListener(oPBResultListener5)
+	oResultDialog3.getControl(&quot;PB6&quot;).removeActionListener(oPBResultListener6)
+
+	REM ***** Schliessen des Dialogs *****
+	oResultDialog3.EndExecute()
+
+End Sub
+
+REM ***** Dialog für das Erfassen des Teilers *****
+REM ***** Benötigt Typ (Pokal, Programm_2) als Übergabeparameter *****
+Sub Dialog_Teiler_Erfassen(ByVal sTeiler As String)
+
+	Dim oDialogModel As Object
+	Dim oWindow As Object
+	Dim oMod As Object
+	Dim oEvent1
+	Dim oEvent2
+	
+	REM ***** Initialisierung der Eigenschaften des Dialogs *****
+	oDialogModel = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialogModel&quot;)
+	With oDialogModel
+		.setPropertyValue(&quot;PositionX&quot;, 270)
+		.setPropertyValue(&quot;PositionY&quot;, 150 )
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 17)
+		.setPropertyValue(&quot;Height&quot;, (Fontsize * 3) + (3 * (Fontsize + 7)))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Title&quot;, sTeiler)
+	End With
+	
+	oTeilerDialog = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialog&quot;)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, &quot;Nummer: &quot; &amp; mSchuetze(1))
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelID&quot;)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;PositionX&quot;, 10)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, 50)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelID&quot;, oMod)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, mSchuetze(2))
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelName&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, oDialogModel.Width - 100)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, 90)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelName&quot;, oMod)
+	
+	REM ***** Linie erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedLineModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;FixedLabel1&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, 10)
+		.setPropertyValue(&quot;PositionY&quot;, INT(Fontsize * 2.5))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, 5)
+		.setPropertyValue(&quot;Width&quot;, oDialogModel.Width - 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;FixedLabel1&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, sTeiler &amp;&quot; :&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelT&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2 - (2 * Fontsize + 22)))
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 2) + (Fontsize + 5))
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+	End With
+
+	oDialogModel.insertByName(&quot;LabelT&quot;, oMod)
+	
+	REM ***** Numerisches Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlNumericFieldModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 2)
+		.setPropertyValue(&quot;ValueMin&quot;, 0.0)
+		.setPropertyValue(&quot;ValueMax&quot;, 999.9)
+		.setPropertyValue(&quot;DecimalAccuracy&quot;, 1)
+		.setPropertyValue(&quot;StrictFormat&quot;, True)
+		.setPropertyValue(&quot;Name&quot;, &quot;EditModeTeiler&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) + 5)
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 2) + (Fontsize + 5))
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+	End With
+
+	oDialogModel.insertByName(&quot;EditModeTeiler&quot;, oMod)
+					
+	
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Weiter&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB1&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2 - (2 * Fontsize + 22)))
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB1&quot;, oMod)
+	
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Abbruch&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB2&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) + 2)
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB2&quot;, oMod)
+	
+	oTeilerDialog.setModel(oDialogModel)
+	
+	REM ***** Definiere Listerner je nach Teiler-Typ *****
+	If sTeiler = &quot;Pokal&quot; Then
+	
+		REM ***** Listener für den Weiter-Button *****
+		oPBTeilerListener1 = createUnoListener(&quot;PB1_Teiler_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+		oControl = oTeilerDialog.getControl(&quot;PB1&quot;)
+		oControl.addActionListener(oPBTeilerListener1)
+		
+		REM ***** Listener für den Abbruch-Button *****
+		oPBTeilerListener2 = createUnoListener(&quot;PB2_Teiler_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+		oControl = oTeilerDialog.getControl(&quot;PB2&quot;)
+		oControl.addActionListener(oPBTeilerListener2)
+
+	Else
+	
+		REM ***** Listener für den Weiter-Button *****
+		oPBTeilerListener1 = createUnoListener(&quot;PB3_Teiler_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+		oControl = oTeilerDialog.getControl(&quot;PB1&quot;)
+		oControl.addActionListener(oPBTeilerListener1)
+
+		REM ***** Listener für den Abbruch-Button *****
+		oPBTeilerListener2 = createUnoListener(&quot;PB4_Teiler_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+		oControl = oTeilerDialog.getControl(&quot;PB2&quot;)
+		oControl.addActionListener(oPBTeilerListener2)
+
+	End If
+		
+	REM ***** Mittels des Modells den Dialog anzeigen *****
+	oWindow = CreateUnoService(&quot;com.sun.star.awt.Toolkit&quot;)
+	oTeilerDialog.createPeer(oWindow, null)
+	oTeilerDialog.execute()
+
+End Sub
+
+REM ***** Die Aktion des Listeners für den Weiter-Button *****
+Sub PB1_Teiler_actionPerformed(oEvent1)
+
+	Dim oDialogField As Object
+	Dim sTeiler As String
+	
+	REM ***** Entfernen der Listener *****
+	oTeilerDialog.getControl(&quot;PB1&quot;).removeActionListener(oPBTeilerListener1)
+	oTeilerDialog.getControl(&quot;PB2&quot;).removeActionListener(oPBTeilerListener1)
+
+	REM ***** Schliessen des Dialogs *****
+	oTeilerDialog.EndExecute()
+
+	REM ***** Textfield-Status im Dialog ansprechen *****
+	oDialogField = oTeilerDialog.getControl(&quot;EditModeTeiler&quot;)
+	
+	REM ***** Textfield-Status im Dialog auslesen *****
+	sTeiler = oDialogField.Value
+
+	If (sTeiler = 0.0) OR (sTeiler &gt; 999.9) Then
+
+		sTeiler = Format(sTeiler, &quot;##,#0.0&quot;)
+
+		If MsgBox (&quot;Bei Teiler wurde &apos;&quot;&amp; sTeiler &amp;&quot;&apos; eingegeben! Soll dieser Teiler übernommen werden?&quot;, 292) = 7 Then
+
+			REM ***** Rufe Dialog zur Eingabe des Teilers auf ***** 
+			Call Dialog_Teiler_Erfassen(&quot;Pokal&quot;)
+
+			REM ***** Beende Makro und kehre zum übergeordneten Makro zurück *****
+			Exit Sub
+
+		End If
+
+	End If
+		
+	REM ***** Schreibe Teiler in Array *****
+	mSchuetze(nSerien+5) = sTeiler
+		
+End Sub
+
+REM ***** Die Aktion des Listeners für den Abbruch-Button *****
+Sub PB2_Teiler_actionPerformed(oEvent2)
+
+	REM ***** Entfernen der Listener *****
+	oTeilerDialog.getControl(&quot;PB1&quot;).removeActionListener(oPBTeilerListener1)
+	oTeilerDialog.getControl(&quot;PB2&quot;).removeActionListener(oPBTeilerListener2)
+
+	REM ***** Schliessen des Dialogs *****
+	oTeilerDialog.EndExecute()
+
+End Sub
+
+REM ***** Die Aktion des Listeners für den Weiter-Button *****
+Sub PB3_Teiler_actionPerformed(oEvent1)
+
+	Dim oDialogField As Object
+	Dim sTeiler As String
+	
+	REM ***** Entfernen der Listener *****
+	oTeilerDialog.getControl(&quot;PB1&quot;).removeActionListener(oPBTeilerListener1)
+	oTeilerDialog.getControl(&quot;PB2&quot;).removeActionListener(oPBTeilerListener2)
+
+	REM ***** Schliessen des Dialogs *****
+	oTeilerDialog.EndExecute()
+
+	REM ***** Textfield-Status im Dialog ansprechen *****
+	oDialogField = oTeilerDialog.getControl(&quot;EditModeTeiler&quot;)
+	
+	REM ***** Textfield-Status im Dialog auslesen *****
+	sTeiler = oDialogField.Value
+
+	If (sTeiler = 0.0) OR (sTeiler &gt; 999.9) Then
+
+		sTeiler = Format(sTeiler, &quot;##,#0.0&quot;)
+
+		If MsgBox (&quot;Bei Teiler wurde &apos;&quot;&amp; sTeiler &amp;&quot;&apos; eingegeben! Soll dieser Teiler übernommen werden?&quot;, 292) = 7 Then
+
+			REM ***** Rufe Dialog zur Eingabe des Teilers auf ***** 
+			Call Dialog_Teiler_Erfassen(&quot;2.Prog&quot;)
+
+			REM ***** Beende Makro und kehre zum übergeordneten Makro zurück *****
+			Exit Sub
+
+		End If
+
+	End If
+		
+	REM ***** Schreibe Teiler in Array *****
+	mSchuetze(nSerien+6) = sTeiler
+		
+End Sub
+
+REM ***** Die Aktion des Listeners für den Abbruch-Button *****
+Sub PB4_Teiler_actionPerformed(oEvent2)
+
+	REM ***** Entfernen der Listener *****
+	oTeilerDialog.getControl(&quot;PB1&quot;).removeActionListener(oPBTeilerListener1)
+	oTeilerDialog.getControl(&quot;PB2&quot;).removeActionListener(oPBTeilerListener2)
+
+	REM ***** Schliessen des Dialogs *****
+	oTeilerDialog.EndExecute()
+
+End Sub
+
+REM ***** Dialog für die Anzeige, dass der Vorjahresschnitt nicht erreicht wurde *****
+Sub Dialog_Vorjahresschnitt
+
+	REM ***** Messagebox ausgeben *****
+	Beep
+	MsgBox &quot;Vorjahresschnitt wurde nicht erreicht.&quot;, 48, &quot;Jahresschnitt&quot;
+
+End Sub
+</script:module>

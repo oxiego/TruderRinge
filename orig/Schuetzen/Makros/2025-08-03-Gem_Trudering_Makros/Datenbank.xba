@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Datenbank" script:language="StarBasic">Sub DB_Test(nSchiesstag As Integer, nSaison As Integer)
+	REM ***** Routine zur Überprüfung, ob letzte Tagesauswertung korrekt in Datenbank geschrieben wurde *****
+
+	Dim bFleisch As Boolean
+	
+	REM ***** Überprüfe ob Fleisch geschossen wurde und speichere in Variable *****
+	bFleisch = getFleisch(nSchiesstag, nSaison)
+	
+	REM ***** Testausgabe *****
+&apos;	MsgBox &quot;Schiesstag: &quot;&amp; nSchiesstag &amp; + Chr$(13) + &quot;gSaison: &quot;&amp; nSaison &amp; + Chr$(13) + &quot;Fleisch: &quot;&amp; bFleisch &amp;&quot;&quot;
+
+	REM ***** Überprüfe ob Tabelle LG_Geldpreise befüllt wurde *****
+	Query = &quot;SELECT * FROM &quot;&quot;LG_Geldpreise&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; nSaison &amp;&quot; AND &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+	
+	If Not IsNull(ResultSet) Then
+
+		If Not ResultSet.next Then
+
+			LG_Geldpreise = FALSE
+
+		Else
+
+			LG_Geldpreise = TRUE
+
+		End If
+
+	End If
+		
+	REM ***** Überprüfe ob Tabelle LG_Geldpreise_Bericht befüllt wurde *****
+	Query = &quot;SELECT * FROM &quot;&quot;LG_Geldpreise_Bericht&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+	
+	If Not IsNull(ResultSet) Then
+
+		If Not ResultSet.next Then
+
+			LG_Geldpreise_Bericht = FALSE
+
+		Else
+
+			LG_Geldpreise_Bericht = TRUE
+
+		End If
+
+	End If
+
+	If gFleisch Then
+
+		REM ***** Überprüfe ob Tabelle Fleischpreise_Ergebnisse_Schiesstag befüllt wurde *****
+		Query = &quot;SELECT * FROM &quot;&quot;Fleischpreise_Ergebnisse_Schiesstag&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot;&quot;
+		ResultSet = Statement.executeQuery(Query)
+	
+		If Not IsNull(ResultSet) Then
+
+			If Not ResultSet.next Then
+
+				LG_Fleisch = FALSE
+
+			Else
+
+				LG_Fleisch = TRUE
+
+			End If
+
+		End If
+
+	Else
+
+		LG_Fleisch = TRUE
+
+	End If
+	
+	REM ***** Überprüfe ob LP_Ergenisse_Schiesstag befüllt wurde *****
+	Query = &quot;SELECT * FROM &quot;&quot;LP_Ergebnisse_Schiesstag&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; nSaison &amp;&quot; AND &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+	
+	If Not IsNull(ResultSet) Then
+
+		If ResultSet.getrow() &gt; 0 Then
+
+			REM ***** Überprüfe ob Tabelle LP_Geldpreise befüllt wurde *****
+			Query = &quot;SELECT * FROM &quot;&quot;LP_Geldpreise&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; nSaison &amp;&quot; AND &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot;&quot;
+			ResultSet = Statement.executeQuery(Query)
+
+			If Not IsNull(ResultSet) Then
+
+				If Not ResultSet.next Then
+
+					LP_Geldpreise = FALSE
+
+				Else
+
+					LP_Geldpreise = TRUE
+
+				End If
+
+			End If
+		
+			REM ***** Überprüfe ob Tabelle LP_Geldpreise_Bericht befüllt wurde *****
+			Query = &quot;SELECT * FROM &quot;&quot;LP_Geldpreise_Bericht&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot;&quot;
+			ResultSet = Statement.executeQuery(Query)
+
+			If Not IsNull(ResultSet) Then
+
+				If Not ResultSet.next Then
+
+					LP_Geldpreise_Bericht = FALSE
+
+				Else
+
+					LP_Geldpreise_Bericht = TRUE
+
+				End If
+
+			End If
+
+		Else
+
+			LP_Geldpreise = TRUE
+			LP_Geldpreise_Bericht = TRUE
+
+		End If
+
+	End If
+
+	REM ***** Gebe Hinwies aus wenn eine Eigenschaft FALSE ist *****
+	If Not (LG_Geldpreise AND LG_Geldpreise AND LG_Fleisch AND LP_Geldpreise AND LP_Geldpreise_Bericht) Then
+
+		MsgBox &quot;Tagesauswertung für Schiesstag &quot; + nSchiesstag + &quot; fehlerhaft!&quot; + Chr$(13) + &quot;Administrator benachrichtigen!&quot;, 16, &quot;Fehler&quot;
+
+	Else
+
+		MsgBox &quot;Tagesauswertung für Schiesstag &quot; + nSchiesstag + &quot; korrekt!&quot;, 64, &quot;Hinweis&quot;
+
+	End If
+
+End Sub
+</script:module>

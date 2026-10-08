@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Autostart" script:language="StarBasic">REM ***** Definition der Globalen Variablen *****
+REM ***** Bei Änderungen muss das Programm neu gestartet werden!!! ***** 
+
+REM ***** Variablen für die DB-Verbindung und die SQL-Querys *****
+Global DatabaseContext As Object
+Global DataSource As Object
+Global Connection As Object
+Global InteractionHandler As Object
+Global Statement As Object
+Public ResultSet As Object
+Public Query As String
+
+REM ***** Variablen für die Anzeige Variablen *****
+Global DisplayProp As Object
+Global Font As String 
+Global Fontsize As Integer
+
+REM ***** Variablen für das Drucken der Berichte *****
+Global Document As Object
+Global docURL As String
+
+REM ***** Allgemeine Variablen *****
+Global sDatum As String				&apos;Globale Variable zum Speichern des Tagesdatums
+Global gSaison As Integer			&apos;Globale Variable zum Speichern der aktuellen Saison
+Global gSchiesstag As Integer		&apos;Globale Variable zum Speichern des aktuellen Schiesstages
+Global gFleisch As Boolean			&apos;Globale Variable zum Speichern des Fleischwertes
+Global MinErgDefault				&apos;Minimale Anzahl der Schiesstage für die Auswertung
+
+REM ***** Autostart Routine zum Initialisieren der globalen Variablen*****
+REM ***** Wird nach dem Öffnen des Formulars &quot;Hauptformular&quot; / &quot;Verwaltung&quot; aufgerufen *****
+Sub Autostart
+
+	Dim DisplayAccess As Object
+	Dim Display As Object
+	Dim Screen As Object
+	Dim ScreenRes As Integer
+&apos;	Dim DisplayProp As Object
+	Dim OpenForm As Object
+	Dim dbURL As String
+		
+	REM ***** Zu öffnende Datenbank *****
+	dbURL = &quot;Schuetzen&quot;
+
+	REM ***** Speicherplatz für Berichte *****
+	docURL = &quot;file:///E:/Schuetzen/Berichte/&quot;
+	
+	REM ***** Initialisierung der Datenbankverbindungen
+	DatabaseContext = createUnoService(&quot;com.sun.star.sdb.DatabaseContext&quot;)
+	DataSource = DatabaseContext.getByName(dbURL)
+	
+	If Not DataSource.IsPasswordRequired Then
+		Connection = DataSource.GetConnection(&quot;&quot;,&quot;&quot;)
+	Else
+		InteractionHandler = createUnoService(&quot;com.sun.star.sdb.InteractionHandler&quot;)
+		Connection = DataSource.ConnectWithCompletion(InteractionHandler)
+	End If
+	
+	Statement = Connection.createStatement()
+	Statement.setPropertyValue(&quot;ResultSetType&quot;,1004)
+	Statement.SetPropertyValue(&quot;ResultSetConcurrency&quot;, 1007)
+	
+	REM ***** Schrift für Dialoge initialisieren
+	Font = &quot;Arial&quot;
+	Fontsize = 10
+
+	REM ***** Initialisiere die minimale Anzahl der Schiesstage für die Auswertung *****
+	MinErgDefault = 5
+	
+	REM ***** Initialisiere Datumsvariable mit aktuellem Tagesdatum *****
+	sDatum = Format(Date, &quot;YYYY-MM-DD&quot;)
+
+	REM ***** Laufende Saison ermitteln und in globale Variable speichern *****
+	gSaison = getSaison()
+
+	If gSaison &gt; 0 Then
+	
+		REM ***** Laufenden Schiesstag ermitteln und in globale Variable speichern *****
+		gSchiesstag = getSchiesstag(gSaison)
+		
+		REM ***** Überprüfe ob Fleisch geschossen wurde und speichere in globale Variable *****
+		gFleisch = getFleisch(gSchiesstag, gSaison)
+
+		If gSchiesstag &gt; 0 Then
+		
+			Query = &quot;SELECT &quot;&quot;Datum&quot;&quot; FROM &quot;&quot;Schiesstage&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot; AND &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; &quot;
+			ResultSet = Statement.executeQuery(Query)
+		
+			ResultSet.last()
+		
+			REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+			If ResultSet.getrow() &gt; 0 Then
+		
+				REM ***** Überprüfe ob Datum Schiesstage != Tagesdatum
+				If ResultSet.getString(1) &lt;&gt; sDatum Then
+	
+					REM ***** Rufe Routine zum Testen der Datenbank auf *****
+					Call DB_Test(gSchiesstag,gSaison)
+				
+				End If
+
+			End If
+
+		End If
+
+	End If
+
+End Sub
+
+Sub Autoclose
+	REM ***** Autoclose Routinen *****
+	REM ***** Wird bei Schließen aufgerufen *****
+
+	REM ***** Speichere Daten auf Disk *****
+	DataSource.flush
+	
+	REM ***** Speichere Daten auf Disk *****
+	DataSource.DatabaseDocument.store()
+
+	REM ***** Schliesse Verbindungen *****
+	Connection.close()
+
+End Sub
+</script:module>

@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Berichte" script:language="StarBasic">REM ***** Makros zum Exportieren der Berichte als PDF *****
+Private ArgsPDF(1) As New com.sun.star.beans.PropertyValue   	&apos;Array zum Exportieren von Berichten
+Private Dispatcher As Object
+
+REM ***** Makro zum Exportieren der Luftgewehr Tagesergebnisse *****
+Sub SaveAsPDF_LG_Tagesauswertung(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;-&quot; + Format(gSchiesstag, &quot;##00&quot;) + &quot;_LG_Tagesergebnisse&quot; + &quot;_&quot; + sDatum + &quot;.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der Luftpistole Tagesergebnisse *****
+Sub SaveAsPDF_LP_Tagesauswertung(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;-&quot; + Format(gSchiesstag, &quot;##00&quot;) + &quot;_LP_Tagesergebnisse&quot; + &quot;_&quot; + sDatum + &quot;.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der Luftgewehr Rangliste (Geldpreise) *****
+Sub SaveAsPDF_LG_Rangliste(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;-&quot; + Format(gSchiesstag, &quot;##00&quot;) + &quot;_LG_Rangliste&quot; + &quot;_&quot; + sDatum + &quot;.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der Luftpistole Rangliste (Geldpreise) *****
+Sub SaveAsPDF_LP_Rangliste(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;-&quot; + Format(gSchiesstag, &quot;##00&quot;) + &quot;_LP_Rangliste&quot; + &quot;_&quot; + sDatum + &quot;.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der Fleischpreise *****
+Sub SaveAsPDF_Fleischpreise(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;-&quot; + Format(gSchiesstag, &quot;##00&quot;) + &quot;_Fleischpreise&quot; + &quot;_&quot; + sDatum + &quot;.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der Saisonergebnisse Fleisch *****
+Sub SaveAsPDF_Fleischpreise_Saison(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;-&quot; + Format(gSchiesstag, &quot;##00&quot;) + &quot;_Fleischpreise_Saison&quot; + &quot;_&quot; + sDatum + &quot;.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der Ergebnisliste LG Koenigsschiessen *****
+Sub SaveAsPDF_LG_Koenigsschiessen(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LG_Koenigsschiessen.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der Ergebnisliste LG Koenigsschiessen *****
+Sub SaveAsPDF_LP_Koenigsschiessen(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LP_Koenigsschiessen.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der Ergebnisliste LG Schmankerlpokal *****
+Sub SaveAsPDF_LG_Schmankerlpokal(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LG_Schmankerlpokal.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der Ergebnisliste LP Schmankerlpokal *****
+Sub SaveAsPDF_LP_Schmankerlpokal(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LP_Schmankerlpokal.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der LG_Auswertung_Diepold_WP *****
+Sub SaveAsPDF_LG_Diepold_WP(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LG_Diepold_Wanderpokal.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der LG_Auswertung_Roehrner_WP *****
+Sub SaveAsPDF_LG_Roehrner_WP(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LG_Roehrner_Wanderpokal.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der LG Vereinsmeisterauswertung *****
+Sub SaveAsPDF_LG_Vereinsmeister(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LG_Vereinsmeister.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der LP Vereinsmeisterauswertung *****
+Sub SaveAsPDF_LP_Vereinsmeister(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LP_Vereinsmeister.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der LG Auswertung Geldpreise *****
+Sub SaveAsPDF_LG_Geldpreise(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LG_Geldpreise.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+	
+End Sub
+
+REM ***** Makro zum Exportieren der LP Auswertung Geldpreise *****
+Sub SaveAsPDF_LP_Geldpreise(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LP_Geldpreise.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der LG Pokalteiler *****
+Sub SaveAsPDF_LG_Pokalteiler(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LG_Pokalteiler.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der LP Pokalteiler *****
+Sub SaveAsPDF_LP_Pokalteiler(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LP_Pokalteiler.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der LG Klasseneinteilung *****
+Sub SaveAsPDF_LG_Klasseneinteilung(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LG_Klasseneinteilung.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der LP Klasseneinteilung *****
+Sub SaveAsPDF_LP_Klasseneinteilung(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LP_Klasseneinteilung.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren des LG Schützenberichts Teil 1 *****
+Sub SaveAsPDF_LG_Schuetzenbericht_1(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LG_Schuetzenbericht_1.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren des LG Schützenberichts Teil 2 *****
+Sub SaveAsPDF_LG_Schuetzenbericht_2(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LG_Schuetzenbericht_2.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren des LP Schützenberichts Teil 1 *****
+Sub SaveAsPDF_LP_Schuetzenbericht_1(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LP_Schuetzenbericht_1.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren des LP Schützenberichts Teil 2 *****
+Sub SaveAsPDF_LP_Schuetzenbericht_2(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_LP_Schuetzenbericht_2.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+
+REM ***** Makro zum Exportieren der Schuetzenliste *****
+Sub SaveAsPDF_Schuetzenliste(oReport AS OBJECT)
+
+	DIM stUrl AS STRING
+
+	ArgsPDF(0).Name = &quot;FilterName&quot;
+	ArgsPDF(0).Value = &quot;writer_pdf_Export&quot;
+
+	stUrl = docURL + gSaison + &quot;/&quot; + gSaison + &quot;_Schuetzenliste.pdf&quot;
+
+	oReport.storeToURL(stUrl, ArgsPDF())	
+
+End Sub
+</script:module>

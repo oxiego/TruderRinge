@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE library:library PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "library.dtd">
+<library:library xmlns:library="http://openoffice.org/2000/library" library:name="Gem_Trudering_Makros" library:readonly="false" library:passwordprotected="false">
+ <library:element library:name="Autostart"/>
+ <library:element library:name="Berichte"/>
+ <library:element library:name="Datenbank"/>
+ <library:element library:name="Funktionen"/>
+ <library:element library:name="Klasseneinteilung"/>
+ <library:element library:name="Koenig"/>
+ <library:element library:name="Saison"/>
+ <library:element library:name="Saisonauswertung"/>
+ <library:element library:name="Schiesstag"/>
+ <library:element library:name="Schiessergebnisse"/>
+ <library:element library:name="Schmankerlpokal"/>
+ <library:element library:name="Schuetzenbericht"/>
+ <library:element library:name="Schuetzenerfassung"/>
+ <library:element library:name="Schuetzenliste"/>
+ <library:element library:name="Tagesauswertung"/>
+</library:library>

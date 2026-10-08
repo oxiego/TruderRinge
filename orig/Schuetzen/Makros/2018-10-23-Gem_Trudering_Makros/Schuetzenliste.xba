@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Schuetzenliste" script:language="StarBasic">REM ***** Makros zur Erstellung der Schuetzenliste *****
+
+Sub Schuetzenliste_erstellen
+
+	Dim mSchuetze()
+	Dim iZaehler As Integer
+	Dim i As Integer
+	Dim Document As Object
+	Dim ReportDoc As Object
+	Dim Args(1) As New com.sun.star.beans.PropertyValue			&apos;Array zum Öffnen von Formularen/Berichten
+	Dim ArgsPrint(1) As New com.sun.star.beans.PropertyValue   	&apos;Array zum Drucken von Berichten
+	
+	REM ***** Initialisierung des Arrays zum Öffnen von Formularen/Berichten
+	Args(0).Name = &quot;ActiveConnection&quot;
+	Args(0).Value = Connection
+	Args(1).Name = &quot;OpenMode&quot;
+	Args(1).Value = &quot;open&quot;
+
+	REM ***** Initialisierung des Druckers
+	Document = ThisComponent
+	Prop = Document.getPrinter()
+
+	REM ***** Initialisierung des Arrays zum Drucken von Berichten
+	ArgsPrint(0).name = &quot;Name&quot;               
+	ArgsPrint(0).value = &quot;&lt;&quot; &amp; Prop(0).value &amp; &quot;&gt;&quot;      
+	ArgsPrint(1).name = &quot;Wait&quot;               
+	ArgsPrint(1).value = True                  
+
+	REM ***** Überprüfe ob eine laufende Saison vorhanden ist *****
+	REM ***** Wenn Saison &gt; 0, dann laufende Saison vorhanden *****
+	If gSaison = 0 Then
+
+		MsgBox &quot;Keine laufende Saison gefunden!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn keine Saison gefunden wurde *****
+		Exit Sub
+
+	End If
+
+	REM ***** TABELLE &quot;Schuetzenliste&quot; leeren *****
+	Query = &quot;DELETE FROM &quot;&quot;Schuetzenliste&quot;&quot;&quot;
+	Statement.executeUpdate(Query)
+
+	REM ***** Schreibe alle aktive Schuetzen in Tabelle Schuetzenliste *****
+	Query = &quot;INSERT INTO &quot;&quot;Schuetzenliste&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;) SELECT &quot;&quot;SchuetzenID&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;Aktiv&quot;&quot; = &apos;True&apos;&quot;
+	Statement.executeUpdate(Query)
+
+	REM ***** Lese alle Schuetzen aus Tabelle Schuetzenliste *****
+	Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot; FROM &quot;&quot;Schuetzenliste&quot;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	iZaehler = ResultSet.getrow()
+	ReDim mSchuetze(iZaehler - 1)
+	
+	REM ***** Schreibe Schuetzen in Array
+	For i = 1 To iZaehler
+	
+		ResultSet.absolute(i)
+		mSchuetze(i-1) = ResultSet.getInt(1)
+		
+	Next i
+
+	REM ***** Überprüfe, ob Klasseneinteilung Luftgewehr durchgeführt wurde.
+	Query = &quot;SELECT * FROM &quot;&quot;LG_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+	
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() = 0 Then
+
+		MsgBox (&quot;Keine Klasseneinteilung Luftgewehr für Saison &quot; &amp; gSaison &amp; &quot;gefunden!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn keine Klasseneinteilung Luftgewehr gefunden wurde *****
+		Exit Sub
+
+	End If
+
+	REM ***** Suche Nummer des Schuetzen aus der Tabelle &quot;LG_Einteilung_Klassen&quot; *****
+	For i = 0 To iZaehler - 1
+	
+		Query = &quot;SELECT &quot;&quot;Nummer&quot;&quot; FROM &quot;&quot;LG_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;LG_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(i) &amp;&quot; AND &quot;&quot;LG_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		ResultSet = Statement.executeQuery(Query)
+		
+		ResultSet.last()
+		
+		REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+		If ResultSet.getrow() &gt; 0 Then 
+
+			REM ***** Aktualisiere Schütze in Tabelle Schuetzenliste
+			Query = &quot;UPDATE &quot;&quot;Schuetzenliste&quot;&quot; SET &quot;&quot;Nummer_LG&quot;&quot; = &apos;&quot;&amp; ResultSet.getString(1) &amp;&quot;&apos; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(i) &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+		End If
+	Next i
+
+	REM ***** Überprüfe, ob Klasseneinteilung Luftpistole durchgeführt wurde.
+	Query = &quot;SELECT * FROM &quot;&quot;LP_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+	
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() = 0 Then
+
+		MsgBox (&quot;Keine Klasseneinteilung Luftpistole für Saison &quot; &amp; gSaison &amp; &quot; gefunden!&quot;, 64, &quot;Hinweis&quot;
+
+	End If
+
+	For i = 0 To iZaehler - 1
+	
+		Query = &quot;SELECT &quot;&quot;Nummer&quot;&quot; FROM &quot;&quot;LP_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;LP_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(i) &amp;&quot; AND &quot;&quot;LP_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		ResultSet = Statement.executeQuery(Query)
+		
+		ResultSet.last()
+		
+		REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+		If ResultSet.getrow() &gt; 0 Then 
+
+			REM ***** Schreibe alle aktive Schuetzen in Tabelle Schuetzenliste
+			Query = &quot;UPDATE &quot;&quot;Schuetzenliste&quot;&quot; SET &quot;&quot;Nummer_LP&quot;&quot; = &apos;&quot;&amp; ResultSet.getString(1) &amp;&quot;&apos; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(i) &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+		End If
+	Next i
+
+	REM ***** Berichte öffnen
+	ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;Schuetzenliste&quot;,&quot;_blank&quot;, 0, Args())
+	
+	REM ***** Bericht drucken *****
+&apos;	ReportDoc.print(ArgsPrint())
+
+	REM ***** Bericht als PDF speichern *****
+	Call SaveAsPDF_Schuetzenliste(ReportDoc)
+
+	REM ***** Bericht schließen *****
+&apos;	ReportDoc.close(true)
+
+	MsgBox &quot;Schuetzenliste erfolgreich erstellt!&quot;, 64, &quot;Hinweis&quot;
+
+	REM ***** Speichere Daten auf Disk *****
+	&apos;DataSource.flush
+
+End Sub
+</script:module>

@@ -1,0 +1,675 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Klasseneinteilung" script:language="StarBasic">REM ***** Makros zur Einteilung der Schuetzenklassen *****
+
+Sub LG_LP_Klasseneinteilung
+
+	REM ***** Makro zum Einteilen der Klassen *****
+
+	Dim bVorhanden As Boolean
+	Dim mKlasse() As String
+	Dim sMessage As String
+	Dim iZaehler As Integer
+	Dim i As Integer
+	Dim Document As Object
+	Dim ReportDoc As Object
+	Dim Args(1) As New com.sun.star.beans.PropertyValue			&apos;Array zum Öffnen von Formularen/Berichten
+	Dim ArgsPrint(1) As New com.sun.star.beans.PropertyValue   	&apos;Array zum Drucken von Berichten
+	
+	REM ***** Initialisierung des Arrays zum Öffnen von Formularen/Berichten
+	Args(0).Name = &quot;ActiveConnection&quot;
+	Args(0).Value = Connection
+	Args(1).Name = &quot;OpenMode&quot;
+	Args(1).Value = &quot;open&quot;
+
+	REM ***** Initialisierung des Druckers
+	Document = ThisComponent
+	Prop = Document.getPrinter()
+
+	REM ***** Initialisierung des Arrays zum Drucken von Berichten
+	ArgsPrint(0).name = &quot;Name&quot;               
+	ArgsPrint(0).value = &quot;&lt;&quot; &amp; Prop(0).value &amp; &quot;&gt;&quot;      
+	ArgsPrint(1).name = &quot;Wait&quot;               
+	ArgsPrint(1).value = TRUE                  
+
+	REM ***** Überprüfe ob eine laufende Saison vorhanden ist *****
+	REM ***** Wenn Saison &gt; 0, dann laufende Saison vorhanden *****
+	If gSaison = 0 Then
+
+		MsgBox &quot;Keine laufende Saison gefunden!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn keine Saison gefunden wurde *****
+		Exit Sub
+
+	End If
+
+	bVorhanden = FALSE
+	
+	REM ***** Überprüfe, ob LG Klasseneinteilung bereits durchgeführt wurde.
+	Query = &quot;SELECT * FROM &quot;&quot;LG_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+	
+	ResultSet.last()
+
+	If ResultSet.getrow() &gt; 0 Then
+	
+		bVorhanden = TRUE
+
+	End If
+	
+	REM ***** Überprüfe, ob LP Klasseneinteilung bereits durchgeführt wurde.
+	Query = &quot;SELECT * FROM &quot;&quot;LP_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+	
+	ResultSet.last()
+
+	If ResultSet.getrow() &gt; 0 Then
+	
+		bVorhanden = TRUE
+
+	End If
+	
+	If bVorhanden Then
+	
+		If MsgBox (&quot;Klasseneinteilung für Saison &quot; &amp; gSaison &amp; &quot; wurde bereits durchgeführt!&quot; &amp; Chr(13) &amp; &quot;Vorhandene Daten löschen und Klasseneinteilung erneut durchführen?&quot;, 292) = 7 Then
+
+			REM ***** Beende Makro, wenn &quot;Nein&quot;-Button gedrückt wurde *****
+			Exit Sub
+
+		Else
+		
+			REM ***** Überprüfe, ob bereits ein Schiesstag begonnen wurde.
+			Query = &quot;SELECT * FROM &quot;&quot;Schiesstage&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+			ResultSet = Statement.executeQuery(Query)
+
+			ResultSet.last()
+
+			If ResultSet.getrow() &gt; 0 Then
+
+				MsgBox &quot;Klasseneinteilung nicht mehr möglich!&quot; &amp; Chr(13) &amp; &quot;Es wurde bereits ein Schiesstag begonnen!&quot;, 16, &quot;Fehler&quot;
+
+				REM ***** Beende Makro, wenn keine Klasseneinteilung mehr möglich ist *****
+				Exit Sub
+
+			End If
+			
+			REM ***** Lösche Klasseneinteilung Luftgewehr
+			Query = &quot;DELETE FROM &quot;&quot;LG_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** Lösche Klasseneinteilung Luftpistole
+			Query = &quot;DELETE FROM &quot;&quot;LP_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** Lösche Lösche Temp_Schuetzen
+			Query = &quot;DELETE FROM &quot;&quot;Temp_Schuetzen&quot;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** Lösche Temp_Schuetzen
+			Query = &quot;DELETE FROM &quot;&quot;Fleischpreise_Saison&quot;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** Lösche Fleischpreise_Anzahl
+			Query = &quot;DELETE FROM &quot;&quot;Fleischpreise_Anzahl&quot;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+		End If
+
+	End If
+
+	Call Klasseneinteilung(&quot;LG&quot;)
+
+	REM ***** Bericht Klasseneinteilung Luftgewehr öffnen *****
+	ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;LG_Klasseneinteilung&quot;,&quot;_blank&quot;, 0, Args())
+
+	REM ***** Bericht drucken *****
+	ReportDoc.print(ArgsPrint())
+
+	REM ***** Bericht als PDF speichern *****
+	Call SaveAsPDF_LG_Klasseneinteilung(ReportDoc)
+
+	REM ***** Bericht schließen *****
+	ReportDoc.close(true)
+
+	Call Fleischeinteilung(&quot;LG&quot;)
+
+	If MsgBox (&quot;Klasseneinteilung für Luftpistole durchführen?&quot;, 292) = 6 Then
+
+		REM ***** Überprüfe, ob aktive LP Klasse vorhanden.
+		Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;LP&quot;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE&quot;
+		ResultSet = Statement.executeQuery(Query)
+		
+		ResultSet.last()
+	
+		If ResultSet.getrow() &gt; 0 Then
+		
+			Call Klasseneinteilung(&quot;LP&quot;)
+			
+			REM ***** Bericht Klasseneinteilung Luftpistole öffnen
+			ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;LP_Klasseneinteilung&quot;,&quot;_blank&quot;, 0, Args())
+	
+			REM ***** Bericht drucken *****
+			ReportDoc.print(ArgsPrint())
+	
+			REM ***** Bericht als PDF speichern *****
+			Call SaveAsPDF_LP_Klasseneinteilung(ReportDoc)
+	
+			REM ***** Bericht schließen *****
+			ReportDoc.close(true)
+	
+			Call Fleischeinteilung(&quot;LP&quot;)
+	
+		End If
+	End If
+
+	REM ***** Gib Auflistung der Fleischtage aus *****
+	Query = &quot;SELECT COUNT(&quot;&quot;Fleischpreise_Saison&quot;&quot;.&quot;&quot;Klasse&quot;&quot;), &quot;&quot;Fleischpreise_Saison&quot;&quot;.&quot;&quot;Klasse&quot;&quot; FROM &quot;&quot;Fleischpreise_Saison&quot;&quot; GROUP BY &quot;&quot;Fleischpreise_Saison&quot;&quot;.&quot;&quot;Klasse&quot;&quot;ORDER BY &quot;&quot;Fleischpreise_Saison&quot;&quot;.&quot;&quot;Klasse&quot;&quot; ASC&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	sMessage = &quot;&quot;
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+	
+		iZaehler = ResultSet.getrow()
+		
+		For i = 0 to iZaehler -1
+	
+			ResultSet.absolute(i + 1)
+			Value1 = ResultSet.getString(2)
+			Value2 = ResultSet.getInt(1)
+			sMessage = sMessage + &quot;Schützenklasse &quot;+ Value1 +&quot; : &quot;+ Value2 +&quot; &quot;+ Chr$(13)
+	
+		Next i
+
+
+		MsgBox sMessage, MB_ICONEXCLAMATION, &quot;Fleischeinteilung&quot;
+		
+		REM ***** Bericht Fleischpreise Saison öffnen *****
+		ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;Fleischpreise_Saison&quot;,&quot;_blank&quot;, 0, Args())
+	
+		REM ***** Bericht drucken *****
+		ReportDoc.print(ArgsPrint())
+	
+		REM ***** Bericht als PDF speichern *****
+		Call SaveAsPDF_Fleischpreise_Saison(ReportDoc)
+	
+		REM ***** Bericht schließen *****
+		ReportDoc.close(true)
+
+	End If
+	
+	MsgBox &quot;Klasseneinteilung abgeschlossen!&quot;, 32, &quot;Hinweis&quot;
+
+	REM ***** Speichere Daten auf Disk *****
+	DataSource.flush
+
+End Sub
+
+Sub Klasseneinteilung(ByVal sTyp As String)
+
+	REM ***** Makro zum Einteilen der Schuetzenklassen *****
+	REM ***** Typ als Übergabeparameter *****
+	REM ***** LG für Luftgewehr / LP für Luftpistole *****
+
+	Dim bDamen As Boolean
+	Dim bJugend As Boolean
+	Dim bHilfsmittel As Boolean
+	Dim bFleisch As Boolean
+	Dim nJahrgang As Integer
+	Dim nAnzahl As Integer
+	Dim mKlasse() As String
+	Dim nNumber As Integer
+	Dim i As Integer
+	Dim iZaehler As Integer
+
+	REM ***** Setzte Anzahl der Schuetzen in Tabelle &quot;Schuetzenklassen&quot; auf &quot;0&quot;
+	Query = &quot;UPDATE &quot;&quot;Schuetzenklassen&quot;&quot; SET &quot;&quot;Schuetzen&quot;&quot; = 0 WHERE &quot;&amp; sTyp &amp;&quot; = TRUE&quot;
+	Statement.executeUpdate(Query)
+
+	REM ***** TABELLE &quot;Temp_Schuetzen&quot; leeren *****
+	Query = &quot;DELETE FROM &quot;&quot;Temp_Schuetzen&quot;&quot;&quot;
+	Statement.executeUpdate(Query)
+
+	REM ***** Überprüfe, ob aktive Damenklasse vorhanden *****
+	Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Damenklasse&quot;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE&quot;
+	ResultSet = Statement.executeQuery(Query)
+	
+	ResultSet.last()
+	
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		bDamen = TRUE
+		
+	Else
+
+		bDamen = FALSE
+
+	End If
+
+	REM ***** Überprüfe, ob aktive Hilfsmittelklasse vorhanden *****
+	Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Hilfsmittel&quot;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+	
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		bHilfsmittel = TRUE
+		
+	Else
+
+		bHilfsmittel = FALSE
+
+	End If
+
+	REM ***** Überprüfe, ob aktive Jugendklasse vorhanden *****
+	Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot;, &quot;&quot;Jahrgang&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Jugendklasse&quot;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+	
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		bJugend = TRUE
+		nJahrgang = ResultSet.getInt(2)
+		
+	Else
+
+		bJugend = FALSE
+		
+	End If
+
+	REM ***** Kopiere alle männliche aktiven Schuetzen ausser Jugend und Sonderklassen nach &quot;Temp_Schuetzen&quot; *****
+	Query = &quot;INSERT INTO &quot;&quot;Temp_Schuetzen&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Vorjahresschnitt&quot;&quot;) SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Vorjahresschnitt&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;Geschlecht&quot;&quot; = &apos;M&apos; AND &quot;&quot;Hilfsmittel&quot;&quot; = FALSE AND &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE AND YEAR(&quot;&quot;Geburtsdatum&quot;&quot;) &lt; &quot;&amp; nJahrgang &amp;&quot;&quot;
+	Statement.executeUpdate(Query)
+
+	If Not bHilfsmittel Then
+
+		REM ***** Kopiere alle aktiven Schuetzen die Hilfsmittel verwenden nach &quot;Temp_Schuetzen&quot; *****
+		Query = &quot;INSERT INTO &quot;&quot;Temp_Schuetzen&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Vorjahresschnitt&quot;&quot;) SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Vorjahresschnitt&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;Hilfsmittel&quot;&quot; = TRUE AND &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE AND YEAR(&quot;&quot;Geburtsdatum&quot;&quot;) &lt; &quot;&amp; nJahrgang &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+
+	End If
+		
+	If Not bDamen Then
+
+		REM ***** Kopiere alle aktiven weiblichen Schuetzen nach &quot;Temp_Schuetzen&quot; *****
+		Query = &quot;INSERT INTO &quot;&quot;Temp_Schuetzen&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Vorjahresschnitt&quot;&quot;) SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Vorjahresschnitt&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;Geschlecht&quot;&quot; = &apos;W&apos; AND &quot;&quot;Hilfsmittel&quot;&quot; = FALSE AND &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE AND YEAR(&quot;&quot;Geburtsdatum&quot;&quot;) &lt; &quot;&amp; nJahrgang &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+
+	End If
+		
+	If Not bJugend Then
+
+		REM ***** Kopiere alle aktiven Jugend-Schuetzen nach &quot;Temp_Schuetzen&quot; *****
+		Query = &quot;INSERT INTO &quot;&quot;Temp_Schuetzen&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Vorjahresschnitt&quot;&quot;) SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Vorjahresschnitt&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE AND YEAR(&quot;&quot;Geburtsdatum&quot;&quot;) &gt;= &quot;&amp; nJahrgang &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+
+	End If
+
+	REM ***** Aktive Schuetzenklassen ohne Sonder-/Damen- und Jugendklassen auslesen *****
+	Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Damenklasse&quot;&quot; = FALSE AND &quot;&quot;Jugendklasse&quot;&quot; = FALSE AND &quot;&quot;Hilfsmittel&quot;&quot; = FALSE AND &quot;&quot;Aktiv&quot;&quot; = TRUE ORDER BY &quot;&quot;Klasse&quot;&quot; ASC&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+	
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		iZaehler = ResultSet.getrow()
+
+		REM ***** Reinitialisiere Array *****
+		ReDim mKlasse(iZaehler - 1)
+
+	Else
+
+		MsgBox &quot;Keine aktive Schützenklasse gefunden!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn keine Schützenklasse ohne Sonder-/Damen- und Jugendklassen gefunden wurde *****
+		Exit Sub
+		
+	End If
+
+	For i = 0 to iZaehler -1
+
+		ResultSet.absolute(i + 1)
+
+		REM ***** Speichere Schuetzenklassen in Array *****
+		mKlasse(i) = ResultSet.getString(1)
+
+	Next i
+
+	REM ***** Initialisiere Schützennummer *****
+	nNumber = 1
+	
+	REM ***** Führe Schützeneinteilung durch *****
+	Call Schuetzeneinteilung(sTyp, mKlasse, iZaehler, nNumber)
+
+	If bHilfsmittel Then
+
+		REM ***** Kopiere alle aktiven Schuetzen die Hilfsmittel verwenden nach &quot;Temp_Schuetzen&quot; *****
+		Query = &quot;INSERT INTO &quot;&quot;Temp_Schuetzen&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Vorjahresschnitt&quot;&quot;) SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Vorjahresschnitt&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;Hilfsmittel&quot;&quot; = TRUE AND &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE AND YEAR(&quot;&quot;Geburtsdatum&quot;&quot;) &lt; &quot;&amp; nJahrgang &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+
+		REM ***** Aktive Hilfsmittelklassen auslesen *****
+		Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Jugendklasse&quot;&quot; = FALSE AND &quot;&quot;Hilfsmittel&quot;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE ORDER BY &quot;&quot;Klasse&quot;&quot; ASC&quot;
+		ResultSet = Statement.executeQuery(Query)
+	
+		ResultSet.last()
+		
+		REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+		If ResultSet.getrow() &gt; 0 Then
+	
+			iZaehler = ResultSet.getrow()
+	
+			REM ***** Reinitialisiere Array *****
+			ReDim mKlasse(iZaehler - 1)
+	
+			For i = 0 to iZaehler -1
+		
+				ResultSet.absolute(i + 1)
+		
+				REM ***** Speichere Schuetzenklassen in Array *****
+				mKlasse(i) = ResultSet.getString(1)
+		
+			Next i
+
+		End If
+		
+		REM ***** Führe Schützeneinteilung durch *****
+		Call Schuetzeneinteilung(sTyp, mKlasse, iZaehler, nNumber)
+
+	End If
+
+	If bDamen Then
+
+		If bHilfsmittel Then
+		
+			REM ***** Kopiere alle aktiven Damenschützen ohne Hilfmittel nach &quot;Temp_Schuetzen&quot; *****
+			Query = &quot;INSERT INTO &quot;&quot;Temp_Schuetzen&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Vorjahresschnitt&quot;&quot;) SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Vorjahresschnitt&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;Geschlecht&quot;&quot; = &apos;W&apos; AND &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Hilfsmittel&quot;&quot; = FALSE AND &quot;&quot;Aktiv&quot;&quot; = TRUE AND YEAR(&quot;&quot;Geburtsdatum&quot;&quot;) &lt; &quot;&amp; nJahrgang &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+		Else
+		
+			REM ***** Kopiere alle aktiven Damenschützen nach &quot;Temp_Schuetzen&quot; *****
+			Query = &quot;INSERT INTO &quot;&quot;Temp_Schuetzen&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Vorjahresschnitt&quot;&quot;) SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Vorjahresschnitt&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;Geschlecht&quot;&quot; = &apos;W&apos; AND &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE AND YEAR(&quot;&quot;Geburtsdatum&quot;&quot;) &lt; &quot;&amp; nJahrgang &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+		End If
+		
+		REM ***** Aktive Damenklassen auslesen *****
+		Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Damenklasse&quot;&quot; = TRUE AND &quot;&quot;Jugendklasse&quot;&quot; = FALSE AND &quot;&quot;Hilfsmittel&quot;&quot; = FALSE AND &quot;&quot;Aktiv&quot;&quot; = TRUE ORDER BY &quot;&quot;Klasse&quot;&quot; ASC&quot;
+		ResultSet = Statement.executeQuery(Query)
+	
+		ResultSet.last()
+		
+		REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+		If ResultSet.getrow() &gt; 0 Then
+	
+			iZaehler = ResultSet.getrow()
+	
+			REM ***** Reinitialisiere Array *****
+			ReDim mKlasse(iZaehler - 1)
+	
+			For i = 0 to iZaehler -1
+		
+				ResultSet.absolute(i + 1)
+		
+				REM ***** Speichere Schuetzenklassen in Array *****
+				mKlasse(i) = ResultSet.getString(1)
+		
+			Next i
+
+		End If
+		
+		REM ***** Führe Schützeneinteilung durch *****
+		Call Schuetzeneinteilung(sTyp, mKlasse, iZaehler, nNumber)
+
+	End If
+
+	If bJugend Then
+
+		REM ***** Kopiere alle aktiven Jugendschützen nach &quot;Temp_Schuetzen&quot; *****
+		Query = &quot;INSERT INTO &quot;&quot;Temp_Schuetzen&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Vorjahresschnitt&quot;&quot;) SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Vorjahresschnitt&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE AND YEAR(&quot;&quot;Geburtsdatum&quot;&quot;) &gt;= &quot;&amp; nJahrgang &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+
+		REM ***** Aktive Hilfsmittelklassen auslesen *****
+		Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Jugendklasse&quot;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE ORDER BY &quot;&quot;Klasse&quot;&quot; ASC&quot;
+		ResultSet = Statement.executeQuery(Query)
+	
+		ResultSet.last()
+		
+		REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+		If ResultSet.getrow() &gt; 0 Then
+	
+			iZaehler = ResultSet.getrow()
+			
+			if iZaehler &gt; 0 Then
+	
+				REM ***** Reinitialisiere Array *****
+				ReDim mKlasse(iZaehler - 1)
+		
+				For i = 0 to iZaehler -1
+			
+					ResultSet.absolute(i + 1)
+			
+					REM ***** Speichere Schuetzenklassen in Array *****
+					mKlasse(i) = ResultSet.getString(1)
+			
+				Next i
+
+			End If
+
+			REM ***** Führe Schützeneinteilung durch *****
+			Call Schuetzeneinteilung(sTyp, mKlasse, iZaehler, nNumber)
+
+		End If
+	End If
+
+End Sub
+
+Sub Schuetzeneinteilung(ByVal sTyp As String, mKlasse() As String, ByVal nAnzahlK As Integer, nNumber As Integer)
+
+	REM ***** Makro zur Vergabe der Schützennummer für die laufende Saison *****
+	REM ***** Übergabeparameter: Typ (LG/LP), Klassenarray, Größe des Arrays, nächste frei Schützennummer *****
+
+	Dim nAnzahlS As Integer
+	Dim nSchuetzen As Integer
+	Dim nRest As Integer
+	Dim sNumber As String
+	Dim mSchuetze() As String
+	Dim iZaehler As Integer
+	Dim i As Integer
+	Dim j As Integer
+
+	REM ***** Anzahl Schuetzen in Tabelle Temp_Schuetzen auslesen *****
+	Query = &quot;SELECT COUNT(&quot;&quot;SchuetzenID&quot;&quot;) FROM &quot;&quot;Temp_Schuetzen&quot;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		nAnzahlS = ResultSet.getInt(1)
+	
+		If nAnzahlS &gt; 0 Then
+		
+			REM ***** Berechne Anzahl Schuetzen pro Klasse
+			nSchuetzen = Fix(nAnzahlS / nAnzahlK)
+			nRest =  nAnzahlS MOD nAnzahlK
+		
+			REM ***** 
+			For i = 0 To nAnzahlK - 1
+		
+				REM ***** Initialisiere Zählervariablen
+				iZaehler = nSchuetzen
+		
+				REM ***** Überprüfe, ob Rest vorhanden und Zählervariable für diese Klasse erhöht werden muss? *****
+				REM ***** Es werden immer die letzen Klassen aufgefüllt *****
+				If (nRest &gt; 0) AND (nRest &gt;= nAnzahlK - i) Then
+		
+					REM ***** Erhöhe iZaehler1
+					iZaehler = iZaehler + 1
+		
+					REM ***** Reduziere Schuetzen_Rest
+					nRest = nRest - 1
+		
+				End If
+		
+				REM ***** Reinitialisiere Array *****
+				ReDim mSchuetze(iZaehler - 1)
+				
+				REM ***** Schuetzen in Tabelle Temp_Schuetzen auslesen *****
+				Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot; FROM &quot;&quot;Temp_Schuetzen&quot;&quot; ORDER BY &quot;&quot;Vorjahresschnitt&quot;&quot; DESC&quot;
+				ResultSet = Statement.executeQuery(Query)
+		
+				ResultSet.last()
+				
+				REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+				If ResultSet.getrow() &gt; 0 Then
+		
+					For j = 0 to iZaehler - 1
+				
+						ResultSet.absolute(j + 1)
+				
+						REM ***** Speichere SchützenID&apos;s in Array *****
+						mSchuetze(j) = ResultSet.getString(1)
+				
+					Next j
+		
+				End If
+		
+				REM ***** Trage solange Schuetzen in Klasse ein, bis iZaehler erreicht ist
+				For j = 0 To iZaehler - 1
+		
+					If nNumber &lt; 10 Then
+						sNumber = &quot;0&quot; &amp; nNumber
+					Else
+						sNumber = nNumber
+					End If
+		
+					REM ***** Kopiere Daten
+					Query = &quot;INSERT INTO  &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot; (&quot;&quot;Saison&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Nummer&quot;&quot;, &quot;&quot;Klasse&quot;&quot;) VALUES (&quot;&amp; gSaison &amp;&quot;, &quot;&amp; mSchuetze(j) &amp;&quot;, &apos;&quot;&amp; sNumber &amp;&quot;&apos;, &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;)&quot;
+					Statement.executeUpdate(Query)
+		
+					REM ***** Lösche Eintrag in Temp_Schuetzen
+					Query = &quot;DELETE FROM &quot;&quot;Temp_Schuetzen&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(j) &amp;&quot;&quot;
+					Statement.executeUpdate(Query)
+		
+					REM ***** Erhöhe Laufende Nummer
+					nNumber = nNumber + 1
+		
+				Next j
+		
+				REM ***** Trage Anzahl der Schuetzen in Tabelle &quot;Schuetzenklassen&quot; ein
+				Query = &quot;UPDATE &quot;&quot;Schuetzenklassen&quot;&quot; SET &quot;&quot;Schuetzen&quot;&quot; = &quot;&amp; iZaehler &amp;&quot; WHERE &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+				Statement.executeUpdate(Query)
+	
+			Next i 
+
+		End If
+
+	End If
+
+End Sub
+
+Sub Fleischeinteilung(ByVal sTyp As String)
+
+	Dim mSchuetze() As String
+	Dim mKlasse() As String
+	Dim iZaehler As Integer
+	Dim i As Integer
+	Dim j As Integer
+
+	REM ***** Aktive Schützen mit Fleisch auslesen *****
+	Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Klasse&quot;&quot; FROM &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;, &quot;&quot;Schuetzen&quot;&quot;, &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; AND &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; AND &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;Fleisch_&quot;&amp; sTyp &amp;&quot;&quot;&quot; = TRUE AND &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;Fleisch&quot;&quot; = TRUE AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; ORDER BY &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Nummer&quot;&quot; ASC&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		iZaehler = ResultSet.getrow()
+
+		REM ***** Reinitialisiere Array *****
+		ReDim mSchuetze(iZaehler - 1,1)
+
+	Else
+
+		MsgBox &quot;Keine Schützen für Fleisch gefunden!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn keine Schützen für Fleisch gefunden wurde *****
+		Exit Sub
+		
+	End If
+
+	For i = 0 to iZaehler -1
+
+		ResultSet.absolute(i + 1)
+
+		REM ***** Speichere Schuetzennummr in Array *****
+		mSchuetze(i,0) = ResultSet.getInt(1)
+		REM ***** Speichere Vereinsklasse in Array *****
+		mSchuetze(i,1) = ResultSet.getString(2)
+
+	Next i
+
+	REM ***** Erzeuge Einträge in Tabelle &quot;Fleischpreise_Saison&quot; *****
+	For i = 0 to iZaehler -1
+
+		Query = &quot;INSERT INTO &quot;&quot;Fleischpreise_Saison&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Klasse&quot;&quot;) VALUES (&apos;&quot;&amp; mSchuetze(i,0) &amp;&quot;&apos;, &apos;&quot;&amp; mSchuetze(i,1) &amp;&quot;&apos;)&quot;
+		Statement.executeUpdate(Query)
+
+	Next i
+
+	REM ***** Zähle Fleisch pro Klasse
+	Query = &quot;SELECT COUNT(&quot;&quot;Fleischpreise_Saison&quot;&quot;.&quot;&quot;Klasse&quot;&quot;) FROM &quot;&quot;Fleischpreise_Saison&quot;&quot;, &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;Fleischpreise_Saison&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; AND &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;&quot;&amp; sTyp &amp;&quot;&quot;&quot; = TRUE GROUP BY &quot;&quot;Fleischpreise_Saison&quot;&quot;.&quot;&quot;Klasse&quot;&quot;ORDER BY &quot;&quot;Fleischpreise_Saison&quot;&quot;.&quot;&quot;Klasse&quot;&quot; ASC&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		iZaehler = ResultSet.getrow()
+
+		REM ***** Reinitialisiere Array *****
+		ReDim mKlasse(iZaehler - 1,1)
+
+	Else
+
+		MsgBox &quot;Keine Schützenklasse für Fleisch gefunden!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn keine Schützenklasse für Fleisch gefunden wurde *****
+		Exit Sub
+		
+	End If
+
+	For i = 0 to iZaehler -1
+
+		ResultSet.absolute(i + 1)
+
+		REM ***** Speichere Werte in Array *****
+		mKlasse(i,1) = ResultSet.getInt(1)
+		mKlasse(i,0) = ResultSet.getString(2)
+
+	Next i
+
+	REM ***** Schreibe Werte in Tabelle &quot;Fleischpreise_Anzahl&quot; *****
+	For i = 0 to iZaehler -1
+
+		Query = &quot;INSERT INTO &quot;&quot;Fleischpreise_Anzahl&quot;&quot; (&quot;&quot;Klasse&quot;&quot;, &quot;&quot;Tage&quot;&quot;) VALUES (&apos;&quot;&amp; mKlasse(i,0) &amp;&quot;&apos;, &quot;&amp; mKlasse(i,1) &amp;&quot;)&quot;
+		Statement.executeUpdate(Query)
+
+	Next i
+
+End Sub
+</script:module>

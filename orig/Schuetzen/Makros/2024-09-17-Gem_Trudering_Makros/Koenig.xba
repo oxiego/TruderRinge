@@ -1,0 +1,591 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Koenig" script:language="StarBasic">REM ***** Makros zur Eingabe der Ergebnisse des Königsschiessen *****
+
+REM ***** Variablen für den Dialog *****
+Private oPBKoenigListener1
+Private oPBKoenigListener2
+Private oPBKoenigListener3
+Private oPBKoenigListener4
+Private oKoenigDialog1 As Object
+Private oKoenigDialog2 As Object
+
+Private sKlassen As String
+Private sJugend As String
+Private mSchuetze(4) As Variant
+Private sTyp As String					&apos;Private Variable für den Typ (LG/LP)
+Private bCancel As Boolean
+
+REM ***** Makro zur Eingabe der Ergebnisse Königsschiessen*****
+Sub Koenig
+
+	REM ***** Überprüfe ob eine laufende Saison vorhanden ist *****
+	REM ***** Wenn Saison &gt; 0, dann laufende Saison vorhanden *****
+	If getSaison() = 0 Then
+
+		MsgBox &quot;Keine laufende Saison gefunden!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn keine Saison gefunden wurde *****
+		Exit Sub
+
+	End If
+
+	REM ***** Rufe Hauptmakro auf *****
+	Call Koenig_Erfassen()
+
+End Sub
+
+REM ***** Makro zum Erfassen der LG-/LP-Ergebnisse Königsschiessen *****
+Sub Koenig_Erfassen
+
+	Dim i As Integer
+	Dim iZaehler As Integer
+	
+	REM ***** Alle aktiven Klassen ohne Jugendklasse ermitteln *****
+	Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;Jugendklasse&quot;&quot; = FALSE AND &quot;&quot;Aktiv&quot;&quot; = TRUE ORDER BY &quot;&quot;Klasse&quot;&quot; ASC&quot;	
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		iZaehler = ResultSet.getrow()
+
+	End If
+	
+	REM ***** Initialisiere Variable *****
+	sKlassen = &quot;&quot;
+
+	If iZaehler &gt; 0 Then
+	
+		For i = 1 to iZaehler
+	
+			REM ***** Speichere Schuetzenklassen in Variable *****
+			ResultSet.absolute(i)
+	
+			If i &lt; iZaehler Then
+
+				sKlassen = sKlassen + ResultSet.getString(1) + &quot; / &quot;
+
+			Else
+
+				sKlassen = sKlassen + ResultSet.getString(1)
+
+			End If
+
+		Next i
+
+	End If
+
+	REM ***** Alle aktiven Jugendklassen ermitteln *****
+	Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;Jugendklasse&quot;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE ORDER BY &quot;&quot;Klasse&quot;&quot; ASC&quot;	
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		iZaehler = ResultSet.getrow()
+
+	Else
+	
+		iZaehler = 0
+	
+	End If
+	
+	REM ***** Initialisiere Variable *****
+	sJugend = &quot;&quot;
+	
+	If iZaehler &gt; 0 Then
+	
+		For i = 1 to iZaehler
+	
+			REM ***** Speichere Schuetzenklassen in Variable *****
+			ResultSet.absolute(i)
+	
+			If i &lt; iZaehler Then
+
+				sJugend = sJugend + ResultSet.getString(1) + &quot; / &quot;
+
+			Else
+
+				sJugend = sJugend + ResultSet.getString(1)
+
+			End If
+
+		Next i
+
+	End If
+
+	REM ***** Initialisiere Variable *****
+	bCancel = FALSE
+
+	REM ***** Rufe Dialog solange auf, bis Ende gedrückt wird *****
+	Do
+
+		REM ***** Dialog für Eingabe Schützennummer aufrufen *****
+		Call Dialog_Schuetzennummer_Koenig()
+
+	Loop While NOT bCancel
+
+End Sub
+
+REM ***** Dialog für Eingabe der Schützennummer *****
+Sub Dialog_Schuetzennummer_Koenig
+
+	Dim oDialogModel As Object
+	Dim oWindow As Object
+	Dim oMod As Object
+	Dim oEvent1
+	Dim oEvent2
+	
+	REM ***** Initialisierung der Eigenschaften des Dialogs *****
+	oDialogModel = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialogModel&quot;)
+	With oDialogModel
+		.setPropertyValue(&quot;PositionX&quot;, 270)
+		.setPropertyValue(&quot;PositionY&quot;, 150 )
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 11)
+		.setPropertyValue(&quot;Height&quot;, Fontsize * 5)
+		.setPropertyValue(&quot;Title&quot;, sTyp +&quot; Königsschiessen&quot;)
+	End With
+	
+	oKoenigDialog1 = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialog&quot;)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Schützennummer:&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelSN&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 10)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelSN&quot;, oMod)
+	
+	REM ***** Numerisches Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlEditModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;MaxTextLen&quot;, 2)
+		.setPropertyValue(&quot;MultiLine&quot;, False)
+		.setPropertyValue(&quot;Name&quot;, &quot;TF_SchuetzenNr&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, (Fontsize * 9) - 8)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize + 6)
+	End With
+	
+	oDialogModel.insertByName(&quot;TF_SchuetzenNr&quot;, oMod)
+	
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Weiter&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB1&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2 - (2 * Fontsize + 22)))
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB1&quot;, oMod)
+	
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Ende&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB2&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width /2) + 2)
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB2&quot;, oMod)
+	
+	oKoenigDialog1.setModel(oDialogModel)
+	
+	REM ***** Listener für den Weiter-Button *****
+	oPBKoenigListener1 = createUnoListener(&quot;PB1_Koenig_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oKoenigDialog1.getControl(&quot;PB1&quot;)
+	oControl.addActionListener(oPBKoenigListener1)
+	
+	REM ***** Listener für den Ende-Button *****
+	oPBKoenigListener2 = createUnoListener(&quot;PB2_Koenig_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oKoenigDialog1.getControl(&quot;PB2&quot;)
+	oControl.addActionListener(oPBKoenigListener2)
+	
+	REM ***** Mittels des Modells den Dialog anzeigen *****
+	oWindow = CreateUnoService(&quot;com.sun.star.awt.Toolkit&quot;)
+	oKoenigDialog1.createPeer(oWindow, null)
+	oKoenigDialog1.execute()
+
+End Sub
+
+REM ***** Die Aktion des Listeners für den Weiter-Button *****
+Sub PB1_Koenig_actionPerformed(oEvent1)
+
+	Dim oDialogField As Object
+	Dim sName As String
+	Dim sNumber As String
+	Dim sSchuetzenID As String
+		
+	REM ***** Entfernen der Listener *****
+	oKoenigDialog1.getControl(&quot;PB1&quot;).removeActionListener(oPBKoenigListener1)
+	oKoenigDialog1.getControl(&quot;PB2&quot;).removeActionListener(oPBKoenigListener2)
+
+	REM ***** Schliessen des Dialogs *****
+	oKoenigDialog1.EndExecute()
+
+	REM ***** Textfield-Status im Dialog ansprechen *****
+	oDialogField = oKoenigDialog1.getControl(&quot;TF_SchuetzenNr&quot;)
+	
+	REM ***** Textfield im Dialog auslesen *****
+	sNumber = oDialogField.Text
+
+	REM ***** Suche Namen zu Schützennummer *****
+	If sNumber &lt;= &quot;80&quot; Then
+	
+		Query = &quot;SELECT &quot;&quot;LG_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;Name&quot;&quot;, &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;Vorname&quot;&quot; FROM &quot;&quot;LG_Einteilung_Klassen&quot;&quot;, &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;LG_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; AND &quot;&quot;LG_Einteilung_Klassen&quot;&quot;.&quot;&quot;Nummer&quot;&quot; = &apos;&quot;&amp; sNumber &amp;&quot;&apos; AND &quot;&quot;LG_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+	
+	Else
+	
+		Query = &quot;SELECT &quot;&quot;LG_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;Name&quot;&quot;, &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;Vorname&quot;&quot; FROM &quot;&quot;LP_Einteilung_Klassen&quot;&quot;, &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;LP_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; AND &quot;&quot;LP_Einteilung_Klassen&quot;&quot;.&quot;&quot;Nummer&quot;&quot; = &apos;&quot;&amp; sNumber &amp;&quot;&apos; AND &quot;&quot;LP_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		
+	End If
+
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	sName = ResultSet.getString(2) &amp;&quot;, &quot;&amp; ResultSet.getString(3)
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() = 0 Then
+
+		REM ***** Keine Schuetzen gefunden *****
+		MsgBox &quot;Schützennummer &quot;&amp; sNumber &amp;&quot; ist nicht vergeben!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro und kehre zum übergeordneten Makro zurück *****
+		Exit Sub		
+	Else
+
+		sSchuetzenID = ResultSet.getString(1)
+
+		REM ***** Überprüfe ob Schützennummer schon erfasst wurde *****
+		Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot; FROM &quot;&quot;Koenigsschiessen&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; sSchuetzenID &amp;&quot; AND &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		ResultSet = Statement.executeQuery(Query)
+
+		ResultSet.last()
+		
+		If ResultSet.getrow() &gt; 0 Then
+		
+			REM ***** Für diesen Schuetzen wurde bereits ein Ergeniss erfasst *****
+			MsgBox &quot;Schütze &quot;&amp; sName &amp;&quot; wurde bereits erfasst!&quot;, 64, &quot;Hinweis&quot;
+
+			REM ***** Beende Makro und kehre zum übergeordneten Makro zurück *****
+			Exit Sub		
+
+		Else
+
+REM			REM ***** Suche Namen zu SchützenID *****
+REM			Query = &quot;SELECT &quot;&quot;Name&quot;&quot;, &quot;&quot;Vorname&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; sSchuetzenID &amp;&quot;&quot;
+REM			ResultSet = Statement.executeQuery(Query)
+			
+REM			ResultSet.last()
+REM			sName = ResultSet.getString(1) &amp;&quot;, &quot;&amp; ResultSet.getString(2)
+			
+			mSchuetze(0) = sSchuetzenID
+			mSchuetze(1) = sNumber
+			mSchuetze(2) = sName
+			
+			REM ***** Schiesst Schütze in Jugenklasse? *****
+
+			If sNumber &lt;= &quot;80&quot; Then
+	
+				Query = &quot;SELECT &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;Jugendklasse&quot;&quot; FROM &quot;&quot;LG_Einteilung_Klassen&quot;&quot;, &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;LG_Einteilung_Klassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; AND &quot;&quot;LG_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; sSchuetzenID &amp;&quot; AND &quot;&quot;LG_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+	
+			Else
+	
+				Query = &quot;SELECT &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;Jugendklasse&quot;&quot; FROM &quot;&quot;LP_Einteilung_Klassen&quot;&quot;, &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;LP_Einteilung_Klassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; AND &quot;&quot;LP_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; sSchuetzenID &amp;&quot; AND &quot;&quot;LP_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+		
+			End If
+
+			ResultSet = Statement.executeQuery(Query)
+			
+			ResultSet.last()
+		
+			REM ***** Speichere Wert in Variable *****
+			mSchuetze(3) = ResultSet.getBoolean(1)
+		
+			REM ***** Rufe Dialog zur Eingabe des Ergebnisses auf ***** 
+			Call Dialog_Koenig_Erfassen()
+
+		End If
+	End If
+
+End Sub
+
+REM ***** Die Aktion des Listeners für den Ende-Button *****
+Sub PB2_Koenig_actionPerformed(oEvent2)
+
+	REM ***** Entfernen der Listener *****
+	oKoenigDialog1.getControl(&quot;PB1&quot;).removeActionListener(oPBKoenigListener1)
+	oKoenigDialog1.getControl(&quot;PB2&quot;).removeActionListener(oPBKoenigListener2)
+
+	REM ***** Schliessen des Dialogs *****
+	oKoenigDialog1.EndExecute()
+
+	REM ***** Setzte Variable zum Abbruch des Dialogs *****
+	bCancel = TRUE
+	
+End Sub
+
+REM ***** Dialog für das Erfassen des Schiessergebnisses *****
+Sub Dialog_Koenig_Erfassen
+
+	Dim oDialogModel As Object
+	Dim oWindow As Object
+	Dim oMod As Object
+	Dim oEvent1
+	Dim oEvent2
+	
+	REM ***** Initialisierung der Eigenschaften des Dialogs *****
+	oDialogModel = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialogModel&quot;)
+	With oDialogModel
+		.setPropertyValue(&quot;PositionX&quot;, 270)
+		.setPropertyValue(&quot;PositionY&quot;, 150 )
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 17)
+		.setPropertyValue(&quot;Height&quot;, (Fontsize * 3) + (3 * (Fontsize + 7)))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Title&quot;, sTyp +&quot; Königsschiessen&quot;)
+	End With
+	
+	oKoenigDialog2 = CreateUnoService(&quot;com.sun.star.awt.UnoControlDialog&quot;)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, &quot;Nummer: &quot; &amp; mSchuetze(1))
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelID&quot;)
+		.setPropertyValue(&quot;Align&quot;, 0)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;PositionX&quot;, 10)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, 50)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelID&quot;, oMod)
+	
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, mSchuetze(2))
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelName&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, oDialogModel.Width - 100)
+		.setPropertyValue(&quot;PositionY&quot;, Fontsize)
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, 90)
+	End With
+	
+	oDialogModel.insertByName(&quot;LabelName&quot;, oMod)
+	
+	REM ***** Linie erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedLineModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Name&quot;, &quot;FixedLabel1&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, 10)
+		.setPropertyValue(&quot;PositionY&quot;, INT(Fontsize * 2.5))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, 5)
+		.setPropertyValue(&quot;Width&quot;, oDialogModel.Width - 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;FixedLabel1&quot;, oMod)
+
+	REM ***** Textlabel erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlFixedTextModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 0)
+		.setPropertyValue(&quot;Label&quot;, &quot;Teiler:&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;LabelT&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2 - (2 * Fontsize + 22)))
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 2) + (Fontsize + 5))
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;VerticalAlign&quot;, 1)
+		.setPropertyValue(&quot;FontEmphasisMark&quot;, 0)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+	End With
+
+	oDialogModel.insertByName(&quot;LabelT&quot;, oMod)
+	
+	REM ***** Numerisches Feld erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlNumericFieldModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Border&quot;, 2)
+		.setPropertyValue(&quot;ValueMin&quot;, 0.0)
+		.setPropertyValue(&quot;ValueMax&quot;, 999.9)
+		.setPropertyValue(&quot;DecimalAccuracy&quot;, 1)
+		.setPropertyValue(&quot;StrictFormat&quot;, True)
+		.setPropertyValue(&quot;Name&quot;, &quot;EditModeTeiler&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) + 5)
+		.setPropertyValue(&quot;PositionY&quot;, (Fontsize * 2) + (Fontsize + 5))
+		.setPropertyValue(&quot;Align&quot;, 2)
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 2)
+		.setPropertyValue(&quot;Width&quot;, Fontsize * 3)
+	End With
+
+	oDialogModel.insertByName(&quot;EditModeTeiler&quot;, oMod)
+					
+	
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Weiter&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB3&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2 - (2 * Fontsize + 22)))
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB3&quot;, oMod)
+	
+	REM ***** Pushbutton erzeugen *****
+	oMod = oDialogModel.createInstance(&quot;com.sun.star.awt.UnoControlButtonModel&quot;)
+	With oMod
+		.setPropertyValue(&quot;Label&quot;, &quot;Abbruch&quot;)
+		.setPropertyValue(&quot;Name&quot;, &quot;PB4&quot;)
+		.setPropertyValue(&quot;PositionX&quot;, INT(oDialogModel.Width / 2) + 2)
+		.setPropertyValue(&quot;PositionY&quot;, oDialogModel.Height - (2 * Fontsize + 2))
+		.setPropertyValue(&quot;FontName&quot;, Font)
+		.setPropertyValue(&quot;FontHeight&quot;, Fontsize)
+		.setPropertyValue(&quot;Height&quot;, Fontsize + 7)
+		.setPropertyValue(&quot;Width&quot;, 2 * Fontsize + 20)
+	End With
+	
+	oDialogModel.insertByName(&quot;PB4&quot;, oMod)
+	
+	oKoenigDialog2.setModel(oDialogModel)
+	
+	REM ***** Listener für den Weiter-Button *****
+	oPBKoenigListener3 = createUnoListener(&quot;PB3_Koenig_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oKoenigDialog2.getControl(&quot;PB3&quot;)
+	oControl.addActionListener(oPBKoenigListener3)
+	
+	REM ***** Listener für den Abbruch-Button *****
+	oPBKoenigListener4 = createUnoListener(&quot;PB4_Koenig_&quot;, &quot;com.sun.star.awt.XActionListener&quot;)
+	oControl = oKoenigDialog2.getControl(&quot;PB4&quot;)
+	oControl.addActionListener(oPBKoenigListener4)
+	
+	REM ***** Mittels des Modells den Dialog anzeigen *****
+	oWindow = CreateUnoService(&quot;com.sun.star.awt.Toolkit&quot;)
+	oKoenigDialog2.createPeer(oWindow, null)
+	oKoenigDialog2.execute()
+
+End Sub
+
+REM ***** Die Aktion des Listeners für den Weiter-Button *****
+Sub PB3_Koenig_actionPerformed(oEvent1)
+
+	Dim oDialogField As Object
+	Dim sTeiler As String
+	
+	REM ***** Entfernen der Listener *****
+	oKoenigDialog2.getControl(&quot;PB3&quot;).removeActionListener(oPBKoenigListener3)
+	oKoenigDialog2.getControl(&quot;PB4&quot;).removeActionListener(oPBKoenigListener4)
+
+	REM ***** Schliessen des Dialogs *****
+	oKoenigDialog2.EndExecute()
+
+	REM ***** Textfield-Status im Dialog ansprechen *****
+	oDialogField = oKoenigDialog2.getControl(&quot;EditModeTeiler&quot;)
+	
+	REM ***** Textfield-Status im Dialog auslesen *****
+	sTeiler = oDialogField.Value
+
+	If (sTeiler = 0.0) OR (sTeiler &gt; 999.9) Then
+
+		sTeiler = Format(sTeiler, &quot;##,#0.0&quot;)
+
+		If MsgBox (&quot;Bei Teiler wurde &apos;&quot;&amp; sTeiler &amp;&quot;&apos; eingegeben! Soll dieser Teiler übernommen werden?&quot;, 292) = 7 Then
+
+			REM ***** Rufe Dialog zur Eingabe des Ergebnisses erneut auf ***** 
+			Call Dialog_Koenig_Erfassen()
+
+			REM ***** Beende Makro und kehre zum übergeordneten Makro zurück *****
+			Exit Sub
+
+		End If
+
+	End If
+		
+	REM ***** Schreibe Teiler in Array *****
+	mSchuetze(4) = sTeiler
+		
+
+	REM ***** Jungendschütze? *****
+	If mSchuetze(3) Then
+
+		Query = &quot;INSERT INTO &quot;&quot;Koenigsschiessen&quot;&quot; (&quot;&quot;Saison&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Teiler&quot;&quot;, &quot;&quot;Klasse&quot;&quot;, &quot;&quot;Jugend&quot;&quot;) VALUES (&quot;&amp; gSaison &amp;&quot;, &quot;&amp; mSchuetze(0) &amp;&quot;, &quot;&amp; Str(mSchuetze(4)) &amp;&quot;, &apos;&quot;&amp; sJugend &amp;&quot;&apos;, &quot;&amp; mSchuetze(3) &amp;&quot;)&quot;
+
+	Else
+
+		Query = &quot;INSERT INTO &quot;&quot;Koenigsschiessen&quot;&quot; (&quot;&quot;Saison&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Teiler&quot;&quot;, &quot;&quot;Klasse&quot;&quot;, &quot;&quot;Jugend&quot;&quot;) VALUES (&quot;&amp; gSaison &amp;&quot;, &quot;&amp; mSchuetze(0) &amp;&quot;, &quot;&amp; Str(mSchuetze(4)) &amp;&quot;, &apos;&quot;&amp; sKlassen &amp;&quot;&apos;, &quot;&amp; mSchuetze(3) &amp;&quot;)&quot;
+
+	End If
+
+	REM ***** Schreibe Daten in Tabelle &quot;Koenigsschiessen&quot; *****
+	Statement.executeUpdate(Query)
+
+	REM ***** Speichere Daten auf Disk *****
+	&apos;DataSource.flush
+
+End Sub
+
+REM ***** Die Aktion des Listeners für den Abbruch-Button *****
+Sub PB4_Koenig_actionPerformed(oEvent2)
+
+	REM ***** Entfernen der Listener *****
+	oKoenigDialog2.getControl(&quot;PB3&quot;).removeActionListener(oPBKoenigListener3)
+	oKoenigDialog2.getControl(&quot;PB4&quot;).removeActionListener(oPBKoenigListener4)
+
+	REM ***** Schliessen des Dialogs *****
+	oKoenigDialog2.EndExecute()
+
+End Sub
+</script:module>

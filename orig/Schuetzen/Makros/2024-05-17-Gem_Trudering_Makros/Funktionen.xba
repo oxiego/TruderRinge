@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Funktionen" script:language="StarBasic">REM ***** Allgemeine Funktionen  *****
+
+REM ***** Suche nach laufender Saison *****
+REM ***** Liefert 0 falls keine aktive Saison gefunden wurde *****
+Function getSaison() As Integer
+
+	Dim nSaison As Integer
+	
+	Query = &quot;SELECT * FROM &quot;&quot;Saison&quot;&quot; WHERE &quot;&quot;Aktiv&quot;&quot; = &apos;True&apos;&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		nSaison = ResultSet.getInt(1)
+
+	Else
+	
+		nSaison = 0
+	
+	End If
+
+	getSaison = nSaison
+	
+End Function
+
+REM ***** Liefert den aktuellen Schiesstag der laufenden Saison zurück *****
+REM ***** Saison als Übergabeparameter *****
+REM ***** Liefert 0 falls kein Schiesstag gefunden wurde *****
+Function getSchiesstag(ByVal nSaison As Integer) As Integer
+
+	Dim nSchiesstag As Integer
+
+	Query = &quot;SELECT MAX(&quot;&quot;Schiesstag&quot;&quot;) FROM &quot;&quot;Schiesstage&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; nSaison &amp;&quot; GROUP BY &quot;&quot;Saison&quot;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		nSchiesstag = ResultSet.getInt(1)
+		
+	Else
+	
+		nSchiesstag = 0
+
+	End If
+
+	getSchiesstag = nSchiesstag
+	
+End Function
+
+REM ***** Liefert zurück, ob Fleisch geschossen wird/wurde *****
+REM ***** Schiesstag und Saison als Übergabeparameter *****
+REM ***** Liefert TRUE falls Fleisch, sonst FALSE *****
+Function getFleisch(ByVal nSchiesstag As Integer,ByVal nSaison As Integer) As Boolean
+
+	Dim nFleisch As Boolean
+	
+	Query = &quot;SELECT &quot;&quot;Fleisch&quot;&quot; FROM &quot;&quot;Schiesstage&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; AND &quot;&quot;Saison&quot;&quot; = &apos;&quot;&amp; nSaison &amp;&quot;&apos;&quot;	
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		nFleisch = ResultSet.getBoolean(1)
+		
+	Else
+	
+		nFleisch = FALSE
+
+	End If
+
+	getFleisch = nFleisch
+	
+End Function
+
+REM ***** Liefert eine Zufallszahl zwischen 1 und iVal zurück *****
+Function Zufallsgenerator(ByVal iVal As Integer) As Integer
+
+	Zufallsgenerator = Int((iVal * Rnd))	
+
+End Function
+
+REM ***** Berechnet die Höhe des Geldpreis	*****
+REM ***** Übergabeparameter: 				*****
+REM ***** nAnzahl = Anzahl der Schuetzen 	*****
+REM ***** nPlatz = Plazierung des Schuetzen 	*****
+REM ***** dEinlage = Einlage				*****
+Rem ***** bJugend = Jugendschütze			*****
+Function Berechnung_Geldpreis(ByVal nAnzahl, nPlatz As Integer, ByVal dEinlage As Double, ByVal bJugend As Boolean) As Double
+
+	Dim dBetrag As Double
+
+	REM ***** Wird der Geldbetrag für Jugend berechnet? *****
+	If bJugend Then
+	
+		Select Case nAnzahl
+
+			Case 1
+
+				dBetrag = dEinlage
+
+			Case 2 to 5
+
+				dBetrag = dEinlage * (1 - (0.5 / (nAnzahl - 1) * (nPlatz - 1)))
+
+			Case Else
+
+				dBetrag = dEinlage * (1 - (0.69 / (nAnzahl - 1) * (nPlatz - 1))) + (0.75 / nPlatz)
+
+		End Select
+
+	Else
+	
+		Select Case nAnzahl
+
+			Case 1
+
+				dBetrag = 0.7 * dEinlage
+
+			Case Else
+
+				dBetrag = dEinlage * (0.55 - (0.5 / (nAnzahl - 1) * (nPlatz - 1)))
+
+		End Select
+
+	End If
+
+	Berechnung_Geldpreis = dBetrag
+			
+End Function
+</script:module>

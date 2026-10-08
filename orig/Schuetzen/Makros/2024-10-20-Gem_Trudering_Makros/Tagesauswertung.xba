@@ -1,0 +1,1312 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE script:module PUBLIC "-//OpenOffice.org//DTD OfficeDocument 1.0//EN" "module.dtd">
+<script:module xmlns:script="http://openoffice.org/2000/script" script:name="Tagesauswertung" script:language="StarBasic">REM ***** Makros zur Durchführung der Tagesauswertung *****
+
+Private sKlassen As String		&apos;Private Variable für den Bericht der Geldpreise
+Private nSchiesstag As Integer	&apos;Private Variable für den Schiesstag
+REM Private bFleisch As Boolean		&apos;Private Variable für die Fleischauswertung
+
+REM ***** Makro für den Aufruf der Tagesauswertung *****
+Sub LG_LP_Tagesauswertung
+
+	Dim sDate As Date
+	Dim bFleisch As Boolean
+	Dim Document As Object
+	Dim ReportDoc As Object
+	Dim Args(1) As New com.sun.star.beans.PropertyValue			&apos;Array zum Öffnen von Formularen/Berichten
+	Dim ArgsPrint(1) As New com.sun.star.beans.PropertyValue   	&apos;Array zum Drucken von Berichten
+
+	REM ***** Initialisierung des Arrays zum Öffnen von Formularen/Berichten
+	Args(0).Name = &quot;ActiveConnection&quot;
+	Args(0).Value = Connection
+	Args(1).Name = &quot;OpenMode&quot;
+	Args(1).Value = &quot;open&quot;
+
+	REM ***** Initialisierung des Druckers
+	Document = ThisComponent
+	Prop = Document.getPrinter()
+
+	REM ***** Initialisierung des Arrays zum Drucken von Berichten
+	ArgsPrint(0).name = &quot;Name&quot;               
+	ArgsPrint(0).value = &quot;&lt;&quot; &amp; Prop(0).value &amp; &quot;&gt;&quot;      
+	ArgsPrint(1).name = &quot;Wait&quot;               
+	ArgsPrint(1).value = True                  
+
+	REM ***** Überprüfe ob eine laufende Saison vorhanden ist *****
+	REM ***** Wenn Saison &gt; 0, dann laufende Saison vorhanden *****
+	If gSaison = 0 Then
+
+		MsgBox &quot;Keine laufende Saison gefunden!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn keine Saison gefunden wurde *****
+		Exit Sub
+
+	End If
+
+	REM ***** Sicherheitsabfrage, ob Tagesauswertung wirklich durchgeführt werden soll *****
+	If MsgBox (&quot;Tagesauswertung für Schiesstag &quot; + gSchiesstag + &quot; durchführen?&quot;, 256 + 32 + 4, &quot;Tagesauswertung&quot;) = 7 Then
+
+		REM ***** Beende Makro, wenn Nein-Button gedrückt wurde *****
+		Exit Sub
+		
+	End If
+
+	REM ***** Lies Datum des aktuellen Schiesstages aus *****
+	Query = &quot;SELECT &quot;&quot;Datum&quot;&quot; FROM &quot;&quot;Schiesstage&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot; AND &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If ResultSet.getrow() &gt; 0 Then
+
+		sDate = Format(ResultSet.getString(1), &quot;DD.MM.YYYY&quot;)
+
+	End If
+
+	REM ***** Lies Fleisch für den Schiesstag aus *****
+	bFleisch = getFleisch(gSchiesstag, gSaison)
+
+	REM ***** Überprüfe ob Tagesauswertung LG bereits durchgeführt wurde *****
+	Query = &quot;SELECT * FROM &quot;&quot;LG_Geldpreise&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; AND &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	If ResultSet.getrow() &gt; 0 Then
+
+		REM ***** TABELLE &quot;LG_Geldpreise&quot; zurücksetzen *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Geldpreise&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; AND &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+
+		REM ***** TABELLE &quot;LG_Geldpreise_Bericht&quot; zurücksetzen *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Geldpreise_Bericht&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+
+		REM ***** TABELLE &quot;LP_Geldpreise&quot; zurücksetzen *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Geldpreise&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; AND &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+
+		REM ***** TABELLE &quot;LP_Geldpreise_Bericht&quot; zurücksetzen *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Geldpreise_Bericht&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+
+		REM ***** Überprüfe, ob Fleischtabellen zurückgesetzt werden müssen *****
+		If bFleisch Then
+
+			REM ***** TABELLE &quot;Fleischpreise_Ergebniss_Schiesstag&quot; zurücksetzen *****
+			Query = &quot;DELETE FROM &quot;&quot;Fleischpreise_Ergebnisse_Schiesstag&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** TABELLE &quot;Fleischpreise_Saison&quot; zurücksetzen *****
+			Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz1&quot;&quot; = NULL WHERE &quot;&quot;Platz1&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** TABELLE &quot;Fleischpreise_Saison&quot; zurücksetzen *****
+			Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz2_1&quot;&quot; = NULL WHERE &quot;&quot;Platz2_1&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** TABELLE &quot;Fleischpreise_Saison&quot; zurücksetzen *****
+			Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz2_2&quot;&quot; = NULL WHERE &quot;&quot;Platz2_2&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** TABELLE &quot;Fleischpreise_Saison&quot; zurücksetzen *****
+			Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz3_1&quot;&quot; = NULL WHERE &quot;&quot;Platz3_1&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** TABELLE &quot;Fleischpreise_Saison&quot; zurücksetzen *****
+			Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz3_2&quot;&quot; = NULL WHERE &quot;&quot;Platz3_2&quot;&quot; = &quot;&amp; gSchiesstag &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+		End If
+
+	End If
+
+	REM ***** Rufe Makro zum Berechnen der Geldpreise auf *****
+	Call Geldpreise(gSchiesstag, &quot;LG&quot;)
+	
+	REM ***** Bericht LG_Tagesergebnisse öffnen *****
+	ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;LG_Tagesergebnisse&quot;,&quot;_blank&quot;, 0, Args())
+
+	REM ***** Bericht drucken *****
+	ReportDoc.print(ArgsPrint())
+
+	REM ***** Bericht als PDF speichern *****
+	Call SaveAsPDF_LG_Tagesauswertung(ReportDoc)
+
+	REM ***** Bericht schließen *****
+	ReportDoc.close(true)
+
+	REM ***** Bericht LG_Ranglisteöffnen *****
+	ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;LG_Rangliste&quot;,&quot;_blank&quot;, 0, Args())
+
+	REM ***** Bericht drucken *****
+	ReportDoc.print(ArgsPrint())
+
+	REM ***** Bericht als PDF speichern *****
+	Call SaveAsPDF_LG_Rangliste(ReportDoc)
+
+	REM ***** Bericht schließen *****
+	ReportDoc.close(true)
+
+	REM ***** Überprüfe, ob am aktuellen Schiesstag jemand Luftpistole geschossen hat *****
+	Query = &quot;SELECT COUNT(&quot;&quot;SchuetzenID&quot;&quot;) FROM &quot;&quot;LP_Ergebnisse_Schiesstag&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &apos;&quot;&amp; gSchiesstag &amp;&quot;&apos; AND &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	If ResultSet.getInt(1) &gt; 0 Then
+
+		REM ***** Rufe Makro zum Berechnen der Geldpreise auf *****
+		Call Geldpreise(gSchiesstag, &quot;LP&quot;)
+
+		REM ***** Bericht LP_Tagesergebnisseöffnen *****
+		ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;LP_Tagesergebnisse&quot;,&quot;_blank&quot;, 0, Args())
+
+		REM ***** Bericht drucken *****
+		ReportDoc.print(ArgsPrint())
+
+		REM ***** Bericht als PDF speichern *****
+		Call SaveAsPDF_LP_Tagesauswertung(ReportDoc)
+
+		REM ***** Bericht schließen *****
+		ReportDoc.close(true)
+
+		REM ***** Bericht LP_Ranglisteöffnen *****
+		ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;LP_Rangliste&quot;,&quot;_blank&quot;, 0, Args())
+
+		REM ***** Bericht drucken *****
+		ReportDoc.print(ArgsPrint())
+
+		REM ***** Bericht als PDF speichern *****
+		Call SaveAsPDF_LP_Rangliste(ReportDoc)
+
+		REM ***** Bericht schließen *****
+		ReportDoc.close(true)
+	Else
+	
+		MsgBox &quot;Keine Ergebnisse für Luftpistole vorhanden!&quot;, 64, &quot;Hinweis&quot;
+		
+	End If
+
+	REM ***** Überprüfe, ob Fleisch ausgewertet werden muss *****
+	If bFleisch Then
+	
+		REM ***** Rufe Makro zum Berechnen der Fleischpreise auf *****
+		Call Fleischpreise(gSchiesstag)
+
+		REM ***** Bericht öffnen *****
+		ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;Fleischpreise&quot;,&quot;_blank&quot;, 0, Args())
+
+		REM ***** Bericht drucken *****
+		ReportDoc.print(ArgsPrint())
+
+		REM ***** Bericht als PDF speichern *****
+		Call SaveAsPDF_Fleischpreise(ReportDoc)
+		
+		REM ***** Bericht schließen *****
+		ReportDoc.close(true)
+
+		REM ***** Bericht öffnen *****
+		ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;Fleischpreise_Saison&quot;,&quot;_blank&quot;, 0, Args())
+
+		REM ***** Bericht drucken *****
+		ReportDoc.print(ArgsPrint())
+
+		REM ***** Bericht als PDF speichern *****
+		Call SaveAsPDF_Fleischpreise_Saison(ReportDoc)
+		
+		REM ***** Bericht schließen *****
+		ReportDoc.close(true)
+
+	End If
+
+	MsgBox &quot;Tagesauswertung abgeschlossen!&quot;, MB_ICONEXCLAMATION, &quot;Hinweis&quot;
+
+End Sub
+
+REM ***** Makro für die Admin LG Tagesauswertung *****
+Sub LG_LP_Tagesauswertung_Admin
+
+	Dim bFleisch As Boolean
+	Dim nTag As Integer
+	Dim Document As Object
+	Dim ReportDoc As Object
+	Dim Args(1) As New com.sun.star.beans.PropertyValue			&apos;Array zum Öffnen von Formularen/Berichten
+	Dim ArgsPrint(1) As New com.sun.star.beans.PropertyValue   	&apos;Array zum Drucken von Berichten
+
+	REM ***** Initialisierung des Arrays zum Öffnen von Formularen/Berichten
+	Args(0).Name = &quot;ActiveConnection&quot;
+	Args(0).Value = Connection
+	Args(1).Name = &quot;OpenMode&quot;
+	Args(1).Value = &quot;open&quot;
+
+	REM ***** Initialisierung des Druckers
+	Document = ThisComponent
+	Prop = Document.getPrinter()
+
+	REM ***** Initialisierung des Arrays zum Drucken von Berichten
+	ArgsPrint(0).name = &quot;Name&quot;               
+	ArgsPrint(0).value = &quot;&lt;&quot; &amp; Prop(0).value &amp; &quot;&gt;&quot;      
+	ArgsPrint(1).name = &quot;Wait&quot;               
+	ArgsPrint(1).value = True                  
+	
+	REM ***** Überprüfe ob eine laufende Saison vorhanden ist *****
+	REM ***** Wenn Saison &gt; 0, dann laufende Saison vorhanden *****
+	If gSaison = 0 Then
+
+		MsgBox &quot;Keine laufende Saison gefunden!&quot;, 16, &quot;Fehler&quot;
+
+		REM ***** Beende Makro, wenn keine Saison gefunden wurde *****
+		Exit Sub
+
+	End If
+
+	REM ***** Sicherheitsabfrage, ob Tagesauswertung wirklich durchgeführt werden soll *****
+	If MsgBox (&quot;Tagesauswertung für Schiesstag &quot; + gSchiesstag + &quot; durchführen?&quot;, 256 + 32 + 4, &quot;Tagesauswertung&quot;) = 7 Then
+
+		REM ***** Beende Makro, wenn Nein-Button gedrückt wurde *****
+		Exit Sub
+		
+	End If
+
+	nTag = InputBox (&quot;Schiesstag: &quot;)
+	
+	REM ***** Lies Fleisch für den Schiesstag aus *****
+	bFleisch = getFleisch(nTag, gSaison)
+
+	REM ***** Überprüfe ob Tagesauswertung LG bereits durchgeführt wurde *****
+	Query = &quot;SELECT * FROM &quot;&quot;LG_Geldpreise&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; AND &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nTag &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	If ResultSet.getrow() &gt; 0 Then
+
+		REM ***** TABELLE &quot;LG_Geldpreise&quot; zurücksetzen *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Geldpreise&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; AND &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nTag &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+
+		REM ***** TABELLE &quot;LG_Geldpreise_Bericht&quot; zurücksetzen *****
+		Query = &quot;DELETE FROM &quot;&quot;LG_Geldpreise_Bericht&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nTag &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+
+		REM ***** TABELLE &quot;LP_Geldpreise&quot; zurücksetzen *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Geldpreise&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; AND &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nTag &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+
+		REM ***** TABELLE &quot;LP_Geldpreise_Bericht&quot; zurücksetzen *****
+		Query = &quot;DELETE FROM &quot;&quot;LP_Geldpreise_Bericht&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nTag &amp;&quot;&quot;
+		Statement.executeUpdate(Query)
+
+		REM ***** Überprüfe, ob Fleischtabellen zurückgesetzt werden müssen *****
+		If bFleisch Then
+
+			REM ***** TABELLE &quot;Fleischpreise_Ergebniss_Schiesstag&quot; zurücksetzen *****
+			Query = &quot;DELETE FROM &quot;&quot;Fleischpreise_Ergebnisse_Schiesstag&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nTag &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** TABELLE &quot;Fleischpreise_Saison&quot; zurücksetzen *****
+			Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz1&quot;&quot; = NULL WHERE &quot;&quot;Platz1&quot;&quot; = &quot;&amp; nTag &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** TABELLE &quot;Fleischpreise_Saison&quot; zurücksetzen *****
+			Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz2_1&quot;&quot; = NULL WHERE &quot;&quot;Platz2_1&quot;&quot; = &quot;&amp; nTag &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** TABELLE &quot;Fleischpreise_Saison&quot; zurücksetzen *****
+			Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz2_2&quot;&quot; = NULL WHERE &quot;&quot;Platz2_2&quot;&quot; = &quot;&amp; nTag &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** TABELLE &quot;Fleischpreise_Saison&quot; zurücksetzen *****
+			Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz3_1&quot;&quot; = NULL WHERE &quot;&quot;Platz3_1&quot;&quot; = &quot;&amp; nTag &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+			REM ***** TABELLE &quot;Fleischpreise_Saison&quot; zurücksetzen *****
+			Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz3_2&quot;&quot; = NULL WHERE &quot;&quot;Platz3_2&quot;&quot; = &quot;&amp; nTag &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+		End If
+
+	End If
+
+	REM ***** Rufe Makro zum Berechnen der Geldpreise auf *****
+	Call Geldpreise(nTag, &quot;LG&quot;)
+	
+	REM ***** Bericht LG_Tagesergebnisse öffnen *****
+	ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;LG_Tagesergebnisse&quot;,&quot;_blank&quot;, 0, Args())
+
+	REM ***** Bericht drucken *****
+	ReportDoc.print(ArgsPrint())
+
+	REM ***** Bericht als PDF speichern *****
+	Call SaveAsPDF_LG_Tagesauswertung(ReportDoc)
+
+	REM ***** Bericht schließen *****
+	ReportDoc.close(true)
+
+	REM ***** Bericht LG_Ranglisteöffnen *****
+	ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;LG_Rangliste&quot;,&quot;_blank&quot;, 0, Args())
+
+	REM ***** Bericht drucken *****
+	ReportDoc.print(ArgsPrint())
+
+	REM ***** Bericht als PDF speichern *****
+	Call SaveAsPDF_LG_Rangliste(ReportDoc)
+
+	REM ***** Bericht schließen *****
+	ReportDoc.close(true)
+
+	REM ***** Überprüfe, ob am aktuellen Schiesstag jemand Luftpistole geschossen hat *****
+	Query = &quot;SELECT COUNT(&quot;&quot;SchuetzenID&quot;&quot;) FROM &quot;&quot;LP_Ergebnisse_Schiesstag&quot;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &apos;&quot;&amp; gSchiesstag &amp;&quot;&apos; AND &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	If ResultSet.getInt(1) &gt; 0 Then
+
+		REM ***** Rufe Makro zum Berechnen der Geldpreise auf *****
+		Call Geldpreise(nTag, &quot;LP&quot;)
+
+		REM ***** Bericht LP_Tagesergebnisseöffnen *****
+		ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;LP_Tagesergebnisse&quot;,&quot;_blank&quot;, 0, Args())
+
+		REM ***** Bericht drucken *****
+		ReportDoc.print(ArgsPrint())
+
+		REM ***** Bericht als PDF speichern *****
+		Call SaveAsPDF_LP_Tagesauswertung(ReportDoc)
+
+		REM ***** Bericht schließen *****
+		ReportDoc.close(true)
+
+		REM ***** Bericht LP_Ranglisteöffnen *****
+		ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;LP_Rangliste&quot;,&quot;_blank&quot;, 0, Args())
+
+		REM ***** Bericht drucken *****
+		ReportDoc.print(ArgsPrint())
+
+		REM ***** Bericht als PDF speichern *****
+		Call SaveAsPDF_LP_Rangliste(ReportDoc)
+
+		REM ***** Bericht schließen *****
+		ReportDoc.close(true)
+	
+	Else
+	
+		MsgBox &quot;Keine Ergebnisse für Luftpistole vorhanden!&quot;, 64, &quot;Hinweis&quot;
+
+	End If
+
+	If bFleisch Then
+
+		REM ***** Rufe Makro zum Berechnen der Fleischpreise auf *****
+		Call Fleischpreise(gSchiesstag)
+
+		REM ***** Bericht öffnen *****
+		ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;Fleischpreise&quot;,&quot;_blank&quot;, 0, Args())
+
+		REM ***** Bericht drucken *****
+		ReportDoc.print(ArgsPrint())
+
+		REM ***** Bericht als PDF speichern *****
+		Call SaveAsPDF_Fleischpreise(ReportDoc)
+		
+		REM ***** Bericht schließen *****
+		ReportDoc.close(true)
+
+		REM ***** Bericht öffnen *****
+		ReportDoc = DataSource.DatabaseDocument.ReportDocuments.loadComponentFromURL(&quot;Fleischpreise_Saison&quot;,&quot;_blank&quot;, 0, Args())
+
+		REM ***** Bericht drucken *****
+		ReportDoc.print(ArgsPrint())
+
+		REM ***** Bericht als PDF speichern *****
+		Call SaveAsPDF_Fleischpreise_Saison(ReportDoc)
+		
+		REM ***** Bericht schließen *****
+		ReportDoc.close(true)
+
+	End If
+
+	MsgBox &quot;Tagesauswertung abgeschlossen!&quot;, MB_ICONEXCLAMATION, &quot;Hinweis&quot;
+
+End Sub
+
+REM ***** Makro zum Berechnen der Geldpreise *****
+Sub Geldpreise(ByVal nSchiesstag As Integer, ByVal sTyp As String)
+
+	Dim mKlasse() As Variant
+	Dim iZaehler As Integer
+	Dim i As Integer
+	Dim dEinlage As Double
+
+	REM ***** TABELLE &quot;Temp_Preisverteilung&quot; leeren *****
+	Query = &quot;DELETE FROM &quot;&quot;Temp_Preisverteilung&quot;&quot;&quot;
+	Statement.executeUpdate(Query)
+
+	REM ****************************************************************************************
+	REM ***** Hier beginnt die Auswertung der Schützenklassen ohne Klassen mit Hilfsmittel *****
+	REM ****************************************************************************************
+
+	REM ***** Klassen ohne Hilfsmittel und ohne Jugendklasse auslesen *****
+	Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot;, &quot;&quot;Fleisch&quot;&quot; FROM &quot;&quot;Fleischpreise_Schiesstag&quot;&quot;, &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;Fleischpreise_Schiesstag&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; AND &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;Hilfsmittel&quot;&quot; = FALSE AND &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; ORDER BY &quot;&quot;Klasse&quot;&quot; ASC&quot;	
+
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	iZaehler = ResultSet.getrow()
+
+	REM ***** Setzte Variable *****
+	sKlassen = &quot;&quot;
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If iZaehler &gt; 0 Then
+
+		ReDim mKlasse(iZaehler - 1,1)
+	
+		For i = 1 to iZaehler
+
+			ResultSet.absolute(i)
+	
+			REM ***** Schreib Schuetzenklassen in Array *****
+			mKlasse(i-1,0) = ResultSet.getString(1)
+
+			REM ***** Schreib in Array, ob Klasse Fleisch geschossen hat *****
+			mKlasse(i-1,1) = ResultSet.getBoolean(2)
+			
+			If i &lt; iZaehler Then
+
+				REM ***** Speichere Klassennamen in Variable *****
+				sKlassen = sKlassen + ResultSet.getString(1) + &quot; / &quot;
+
+			Else
+
+				sKlassen = sKlassen + ResultSet.getString(1)
+
+			End If
+
+		Next i
+
+		For i = 0 to iZaehler - 1
+	
+			REM ***** Ermittle die Höhe der Einlage *****
+			Query = &quot;SELECT &quot;&quot;Einlage&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i,0) &amp;&quot;&apos;&quot;	
+			ResultSet = Statement.executeQuery(Query)
+	
+			ResultSet.last()
+
+			dEinlage = ResultSet.getDouble(1)
+	
+			REM ***** Überprüfe, ob in der Klasse Fleisch geschossen wurde *****
+			If mKlasse(i,1) Then
+
+				REM ***** Schreibe Ergebnisse und Programm_2 in Tabelle *****
+				Query = &quot;INSERT INTO &quot;&quot;Temp_Preisverteilung&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;,&quot;&quot;Serie1&quot;&quot;, &quot;&quot;Serie2&quot;&quot;,&quot;&quot;Serie3&quot;&quot;,&quot;&quot;Serie4&quot;&quot;, &quot;&quot;Ergebnis&quot;&quot;, &quot;&quot;Pokal&quot;&quot;,&quot;&quot;Programm_2&quot;&quot;, &quot;&quot;Jugend&quot;&quot;) SELECT &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot;, 0, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie2&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie3&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie4&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Ergebnis&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Pokal&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Programm_2&quot;&quot;, FALSE FROM &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i,0) &amp;&quot;&apos; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Schiesstag&quot;&quot; = &apos;&quot;&amp; nSchiesstag &amp;&quot;&apos; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+
+			Else
+
+				REM ***** Schreibe Ergebnisse, Pokal und Programm_2 in Tabelle *****
+				Query = &quot;INSERT INTO &quot;&quot;Temp_Preisverteilung&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;,&quot;&quot;Serie1&quot;&quot;, &quot;&quot;Serie2&quot;&quot;,&quot;&quot;Serie3&quot;&quot;,&quot;&quot;Serie4&quot;&quot;, &quot;&quot;Ergebnis&quot;&quot;, &quot;&quot;Pokal&quot;&quot;,&quot;&quot;Programm_2&quot;&quot;, &quot;&quot;Jugend&quot;&quot;) SELECT &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie1&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie2&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie3&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie4&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Ergebnis&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Pokal&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Programm_2&quot;&quot;, FALSE FROM &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i,0) &amp;&quot;&apos; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Schiesstag&quot;&quot; = &apos;&quot;&amp; nSchiesstag &amp;&quot;&apos; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;   
+
+			End If
+
+			Statement.executeUpdate(Query)
+
+		Next i 
+
+		REM ***** Rufe Makro zur Auswertung der Serie/Teiler auf *****
+		Call Auswertung_Serie_Teiler(nSchiesstag, sTyp, dEinlage, FALSE)
+
+	End If
+
+	REM ***************************************************************************
+	REM ***** Hier beginnt die Auswertung der Schützenklassen mit Hilfsmittel *****
+	REM ***************************************************************************
+
+	REM ***** TABELLE &quot;Temp_Preisverteilung&quot; leeren *****
+	Query = &quot;DELETE FROM &quot;&quot;Temp_Preisverteilung&quot;&quot;&quot;
+	Statement.executeUpdate(Query)
+
+	REM ***** Klassen mit Hilfsmittel und ohne Jugendklasse auslesen *****
+	Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot;, &quot;&quot;Fleisch&quot;&quot; FROM &quot;&quot;Fleischpreise_Schiesstag&quot;&quot;, &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;Fleischpreise_Schiesstag&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; AND &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&quot;Hilfsmittel&quot;&quot; = TRUE AND &quot;&quot;Schuetzenklassen&quot;&quot;.&quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; ORDER BY &quot;&quot;Klasse&quot;&quot; ASC&quot;	
+
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	iZaehler = ResultSet.getrow()
+
+	REM ***** Setzte Variable *****
+	sKlassen = &quot;&quot;
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If iZaehler &gt; 0 Then
+
+		ReDim mKlasse(iZaehler - 1,1)
+	
+		For i = 1 to iZaehler
+
+			ResultSet.absolute(i)
+	
+			REM ***** Schreib Schuetzenklassen in Array *****
+			mKlasse(i-1,0) = ResultSet.getString(1)
+
+			REM ***** Schreib in Array, ob Klasse Fleisch geschossen hat *****
+			mKlasse(i-1,1) = ResultSet.getBoolean(2)
+
+			If i &lt; iZaehler Then
+
+				REM ***** Speichere Klassennamen in Variable *****
+				sKlassen = sKlassen + ResultSet.getString(1) + &quot; / &quot;
+
+			Else
+
+				sKlassen = sKlassen + ResultSet.getString(1)
+
+			End If
+
+		Next i
+
+		For i = 0 to iZaehler - 1
+	
+			REM ***** Ermittle die Höhe der Einlage *****
+			Query = &quot;SELECT &quot;&quot;Einlage&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i,0) &amp;&quot;&apos;&quot;	
+			ResultSet = Statement.executeQuery(Query)
+	
+			ResultSet.last()
+
+			dEinlage = ResultSet.getDouble(1)
+	
+			REM ***** Überprüfe, ob in der Klasse Fleisch geschossen wurde *****
+			If mKlasse(i,1) Then
+
+				REM ***** Schreibe Ergebnisse und Programm_2 in Tabelle *****
+				Query = &quot;INSERT INTO &quot;&quot;Temp_Preisverteilung&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;,&quot;&quot;Serie1&quot;&quot;, &quot;&quot;Serie2&quot;&quot;,&quot;&quot;Serie3&quot;&quot;,&quot;&quot;Serie4&quot;&quot;, &quot;&quot;Ergebnis&quot;&quot;, &quot;&quot;Pokal&quot;&quot;,&quot;&quot;Programm_2&quot;&quot;, &quot;&quot;Jugend&quot;&quot;) SELECT &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot;, 0, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie2&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie3&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie4&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Ergebnis&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Pokal&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Programm_2&quot;&quot;, FALSE FROM &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i,0) &amp;&quot;&apos; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Schiesstag&quot;&quot; = &apos;&quot;&amp; nSchiesstag &amp;&quot;&apos; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+
+			Else
+
+				REM ***** Schreibe Ergebnisse, Pokal und Programm_2 in Tabelle *****
+				Query = &quot;INSERT INTO &quot;&quot;Temp_Preisverteilung&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;,&quot;&quot;Serie1&quot;&quot;, &quot;&quot;Serie2&quot;&quot;,&quot;&quot;Serie3&quot;&quot;,&quot;&quot;Serie4&quot;&quot;, &quot;&quot;Ergebnis&quot;&quot;, &quot;&quot;Pokal&quot;&quot;,&quot;&quot;Programm_2&quot;&quot;, &quot;&quot;Jugend&quot;&quot;) SELECT &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie1&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie2&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie3&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie4&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Ergebnis&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Pokal&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Programm_2&quot;&quot;, FALSE FROM &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i,0) &amp;&quot;&apos; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Schiesstag&quot;&quot; = &apos;&quot;&amp; nSchiesstag &amp;&quot;&apos; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;   
+
+			End If
+
+			Statement.executeUpdate(Query)
+
+		Next i 
+
+		REM ***** Rufe Makro zur Auswertung der Serie/Teiler auf *****
+		Call Auswertung_Serie_Teiler(nSchiesstag, sTyp, dEinlage, FALSE)
+
+	End If
+
+	REM **************************************************
+	REM ***** Hier beginnt die Auswertung der Jugend *****
+	REM **************************************************
+
+	REM ***** TABELLE &quot;Temp_Preisverteilung&quot; leeren *****
+	Query = &quot;DELETE FROM &quot;&quot;Temp_Preisverteilung&quot;&quot;&quot;
+	Statement.executeUpdate(Query)
+
+	REM ***** Jugenklassen auslesen *****
+	Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&amp; sTyp &amp;&quot; = TRUE AND &quot;&quot;Jugendklasse&quot;&quot; = TRUE AND &quot;&quot;Aktiv&quot;&quot; = TRUE ORDER BY &quot;&quot;Klasse&quot;&quot; DESC&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	iZaehler = ResultSet.getrow()
+
+	REM ***** Setzte Variable *****
+	sKlassen = &quot;&quot;
+
+	REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+	If iZaehler &gt; 0 Then
+
+		ReDim mKlasse(iZaehler - 1)
+	
+		For i = 1 to iZaehler
+
+			ResultSet.absolute(i)
+	
+			REM ***** Schreib Schuetzenklassen in Array *****
+			mKlasse(i-1) = ResultSet.getString(1)
+
+			If i &lt; iZaehler Then
+
+				REM ***** Speichere Klassennamen in Variable *****
+				sKlassen = sKlassen + ResultSet.getString(1) + &quot; / &quot;
+
+			Else
+
+				sKlassen = sKlassen + ResultSet.getString(1)
+
+			End If
+
+		Next i
+
+		For i = 0 to iZaehler - 1
+	
+			REM ***** Ermittle die Höhe der Einlage *****
+			Query = &quot;SELECT &quot;&quot;Einlage&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;	
+			ResultSet = Statement.executeQuery(Query)
+	
+			ResultSet.last()
+
+			dEinlage = ResultSet.getDouble(1)
+	
+			Query = &quot;INSERT INTO &quot;&quot;Temp_Preisverteilung&quot;&quot; (&quot;&quot;SchuetzenID&quot;&quot;,&quot;&quot;Serie1&quot;&quot;, &quot;&quot;Serie2&quot;&quot;,&quot;&quot;Serie3&quot;&quot;,&quot;&quot;Serie4&quot;&quot;, &quot;&quot;Ergebnis&quot;&quot;, &quot;&quot;Pokal&quot;&quot;,&quot;&quot;Programm_2&quot;&quot;, &quot;&quot;Jugend&quot;&quot;) SELECT &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie1&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie2&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie3&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie4&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Ergebnis&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Pokal&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Programm_2&quot;&quot;, TRUE FROM &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot; WHERE &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Schiesstag&quot;&quot; = &apos;&quot;&amp; nSchiesstag &amp;&quot;&apos; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot;&quot;
+			Statement.executeUpdate(Query)
+
+		Next i 
+
+		REM ***** Rufe Makro zur Auswertung der Serie/Teiler für Jugend auf *****
+		Call Auswertung_Serie_Teiler(nSchiesstag, sTyp, dEinlage, TRUE)
+
+	End If
+
+End Sub
+
+REM ***** Makro zur Auswertung der Serie/Teiler *****
+Sub Auswertung_Serie_Teiler(ByVal nSchiesstag As Integer, ByVal sTyp As String, ByVal dEinlage As Double, ByVal bJugend As Boolean)
+	
+	Dim mRinge(), Temp_Serie(0,4) As Long 
+	Dim mTeiler(), Temp_Teiler(0,1) As Double
+	Dim Liste_Ring(), Liste_Teiler() As Double					&apos;Einträge für Ergebnisliste
+	Dim nZaehler As Integer										&apos;Laufvariable
+	Dim rZaehler As Integer										&apos;Laufvariable
+	Dim tZaehler As Integer										&apos;Laufvariable
+	Dim n , r, t, x, y, z As Integer							&apos;Laufvariablen
+	Dim sSchuetze As String
+	Dim nAnzahl As Integer
+
+	REM ***** Lese LG-Ergebnisse aus Tabelle Temp_Preisverteilung aus *****
+	Query = &quot;Select &quot;&quot;SchuetzenID&quot;&quot;,&quot;&quot;Serie1&quot;&quot;,&quot;&quot;Serie2&quot;&quot;,&quot;&quot;Serie3&quot;&quot;,&quot;&quot;Serie4&quot;&quot;,&quot;&quot;Programm_2&quot;&quot;,&quot;&quot;Jugend&quot;&quot; FROM &quot;&quot;Temp_Preisverteilung&quot;&quot; WHERE &quot;&quot;Jugend&quot;&quot; = &quot;&amp; bJugend &amp;&quot; &quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	nZaehler = ResultSet.getrow()
+
+	If nZaehler &gt; 0 Then
+
+		REM ***** Initialisierung Arrays *****
+		ReDim mRinge(nZaehler - 1,4)
+		ReDim mTeiler(nZaehler - 1,1)
+		
+		REM ***** Speichere Ergebnisse in Array *****
+		For n = 1 To nZaehler
+		
+			ResultSet.absolute(n)
+	
+			mRinge(n-1,0) = ResultSet.getLong(1)	&apos;SchützenID
+			mRinge(n-1,1) = ResultSet.getInt(2)		&apos;1. Serie	
+			mRinge(n-1,2) = ResultSet.getInt(3)		&apos;2. Serie
+			mRinge(n-1,3) = ResultSet.getInt(4)		&apos;3. Serie
+			mRinge(n-1,4) = ResultSet.getInt(5)		&apos;4. Serie
+	
+			REM ***** Sortieralgorithmus für Serien, Index 1 ist die höchste Serie, Index 4 die niedigste Serie *****
+			For x = 1 To 3
+				For y = x + 1 To 4
+					If mRinge(n-1,x) &lt; mRinge(n-1,y) Then
+						z = mRinge(n-1,x)
+						mRinge(n-1,x) = mRinge(n-1,y)
+						mRinge(n-1,y) = z
+					End If
+				Next y
+			Next x
+	
+			REM ***** Testausgabe *****
+			REM MsgBox mRinge(n,0) &amp;&quot;, &quot;&amp; mRinge(n,1) &amp;&quot;, &quot;&amp; mRinge(n,2) &amp;&quot;, &quot;&amp; mRinge(n,3) &amp;&quot;, &quot;&amp; mRinge(n,4)
+	
+			mTeiler(n-1,0) = ResultSet.getLong(1)	&apos;SchützenID
+			mTeiler(n-1,1) = ResultSet.getDouble(6)	&apos;Blatt´l Programm_2
+	
+			REM ***** Testausgabe *****
+			REM MsgBox mTeiler(n,0) &amp;&quot;, &quot;&amp; mTeiler(n,1)
+		Next n
+											
+		REM ***** Sortieralgorithmus nach Ringen ==&gt; Sortierung von größter nach kleinster Serie *****
+		For x = 0 To nZaehler - 1
+			For y = x + 1 To nZaehler - 1
+				REM ***** Wenn 1. Serie von Schütze x kleiner als von Schütze y *****
+		 		If mRinge(x,1) &lt; mRinge(y,1) Then
+					REM ***** Tausche Einträge *****
+		 			For z = 0 To 4
+		 				Temp_Serie(0,z) = mRinge(x,z)
+		 				mRinge(x,z) = mRinge(y,z)
+		 				mRinge(y,z) = Temp_Serie(0,z)
+		 			Next z
+				REM ***** Wenn 1. Serie von Schütze x gleich 1. Serie von Schütze y *****
+		 		ElseIf mRinge(x,1) = mRinge(y,1) Then
+					REM ***** Wenn 2. Serie von Schütze x kleiner 2. Serie von Schütze y *****
+		 			If mRinge(x,2) &lt; mRinge(y,2) Then
+						REM ***** Tausche Einträge *****
+			 			For z = 0 To 4
+			 				Temp_Serie(0,z) = mRinge(x,z)
+			 				mRinge(x,z) = mRinge(y,z)
+			 				mRinge(y,z) = Temp_Serie(0,z)
+			 			Next z
+					REM ***** Wenn auch 2. Serie von Schütze x gleich 2. Serie von Schütze y *****
+			 		ElseIf mRinge(x,2) = mRinge(y,2) Then
+						REM ***** Wenn 3. Serie von Schütze x kleiner 3. Serie von Schütze y *****
+		 				If mRinge(x,3) &lt; mRinge(y,3) Then
+							REM ***** Tausche Einträge *****
+			 				For z = 0 To 4
+			 					Temp_Serie(0,z)= mRinge(x,z)
+			 					mRinge(x,z)=mRinge(y,z)
+			 					mRinge(y,z)=Temp_Serie(0,z)
+			 				Next z
+						REM ***** Wenn auch 3. Serie von Schütze x gleich 3. Serie von Schütze y *****
+			 			ElseIf mRinge(x,3) = mRinge(y,3) Then
+							REM ***** Wenn 4. Serie von Schütze x kleiner 4. Serie von Schütze y *****
+				 			If mRinge(x,4) &lt; mRinge(y,4) Then
+								REM ***** Tausche Einträge *****
+					 			For z = 0 To 4
+					 				Temp_Serie(0,z)= mRinge(x,z)
+					 				mRinge(x,z)=mRinge(y,z)
+					 				mRinge(y,z)=Temp_Serie(0,z)
+					 			Next z
+					 		End If
+		 				End If
+		 			End If
+		 		End If
+		 	Next y	
+		Next x
+		
+		REM ***** Sortieralgorithmus nach Teiler ==&gt; Sortierung vom kleinsten zum größten Teiler *****
+		For x = 0 To nZaehler - 1
+			For y = x + 1 To nZaehler - 1													
+				REM ***** Wenn Teiler von Schütze x &gt; als von Schütze y *****
+				If mTeiler(x,1) &gt; mTeiler(y,1) Then
+					REM ***** Tausche Einträge *****
+					For z = 0 To 1
+						Temp_Teiler(0,z) = mTeiler(x,z)
+						mTeiler(x,z) = mTeiler(y,z)
+						mTeiler(y,z) = Temp_Teiler(0,z)
+					Next z
+				End If
+			Next y
+		Next x
+		
+		REM ***** Initialisierung Laufvariablen *****
+		rZaehler = (nZaehler + (nZaehler MOD 2))/ 2
+		tZaehler = Int(nZaehler / 2)
+		nAnzahl = nZaehler
+	
+		REM ***** Initialisierung Arrays *****
+		ReDim Liste_Ring(rZaehler - 1,2)
+
+		REM ***** Wenn mehr als 1 Schütze, dann wird Teilerliste benötigt *****
+		If nZaehler &gt; 1 Then 
+			ReDim Liste_Teiler(tZaehler - 1,2)
+		End If
+			
+		REM ***** Auswertung Ring und Teiler *****
+		For x = 0 to rZaehler - 1
+	
+			REM ***** Initialisierung Laufvariable *****
+			r = 0
+	
+			REM ***** Suche solange bis Datensatz in mRinge mit SchützenID &lt;&gt; 0 gefunden oder Ende erreicht ist *****
+			Do 
+				If mRinge(r,0) &lt;&gt; 0 Then
+					Exit Do
+				End If
+	
+				REM ***** Erhöhe Laufvariable *****
+				r = r + 1
+			Loop While r &lt; nZaehler
+	
+			REM ***** Datensatz gefunden *****
+			If r &lt; nZaehler Then
+				REM ***** Schreibe Datensatz in Ringliste *****
+				Liste_Ring(x,0) = mRinge(r,0)
+				Liste_Ring(x,1) = mRinge(r,1)
+					
+				REM ***** Ermitteln des Geldpreises *****
+				Liste_Ring(x,2) = Berechnung_Geldpreis(nAnzahl, x + 1, dEinlage, bJugend)
+	
+				REM ***** Initialisierung Laufvariable *****
+				t = 0
+				
+				REM ***** Suche SchützenID in Teiler-Array *****
+				Do While (mRinge(r,0) &lt;&gt; mTeiler(t,0))
+					t = t + 1
+				Loop 
+	
+				REM ***** Setzte SchützenID in beiden Arrays = 0 *****
+				mRinge(r,0) = 0
+				mTeiler(t,0) = 0
+			End If
+		
+			REM ***** Initialisierung Laufvariable *****
+			t = 0
+	
+			REM ***** Suche solange bis Datensatz in mTeiler mit SchützenID &lt;&gt; 0 gefunden oder Ende erreicht ist *****
+			Do 
+				If mTeiler(t,0) &lt;&gt; 0 Then
+					Exit Do
+				End If
+	
+				REM ***** Erhöhe Laufvariable *****
+				t = t + 1
+			Loop While t &lt; nZaehler
+				
+			REM ***** Datensatz gefunden *****
+			If t &lt; nZaehler Then
+				REM ***** Schreibe Datensatz in Ringliste *****
+				Liste_Teiler(x,0) = mTeiler(t,0)
+				Liste_Teiler(x,1) = mTeiler(t,1)
+					
+				REM ***** Ermitteln des Geldpreises *****
+				Liste_Teiler(x,2) = Berechnung_Geldpreis(nAnzahl, x + 1, dEinlage, bJugend)
+	
+				REM ***** Initialisierung Laufvariable *****
+				r = 0
+				
+				REM ***** Suche SchützenID in Teiler-Array *****
+				Do While (mTeiler(t,0) &lt;&gt; mRinge(r,0))
+					r = r + 1
+				Loop 
+	
+				REM ***** Setzte SchützenID in beiden Arrays = 0 *****
+				mRinge(r,0) = 0
+				mTeiler(t,0) = 0
+
+			End If
+
+		Next x
+			
+		For r = 0 to rZaehler - 1
+
+			REM ***** Schreibe Platzierung Ringe in Tabelle *****
+			Query = &quot;INSERT INTO &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Geldpreise&quot;&quot; (&quot;&quot;Saison&quot;&quot;,&quot;&quot;Schiesstag&quot;&quot;,&quot;&quot;SchuetzenID&quot;&quot;,&quot;&quot;Plazierung_Serie&quot;&quot;,&quot;&quot;Serie&quot;&quot;,&quot;&quot;Betrag&quot;&quot;,&quot;&quot;Jugend&quot;&quot;) VALUES (&quot;&amp; gSaison &amp;&quot;,&quot;&amp; nSchiesstag &amp;&quot;,&quot;&amp; Liste_Ring(r, 0) &amp; &quot;,&quot;&amp; r + 1 &amp;&quot;,&quot;&amp; Liste_Ring(r, 1) &amp;&quot;,&quot;&amp; Str(Liste_Ring(r, 2)) &amp;&quot;,&quot;&amp; bJugend &amp;&quot;)&quot;
+			Statement.executeUpdate(Query)
+	
+			Query = &quot;SELECT &quot;&quot;Name&quot;&quot;, &quot;&quot;Vorname&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; Liste_Ring(r, 0) &amp;&quot;&quot;
+			ResultSet = Statement.executeQuery(Query)
+			
+			ResultSet.last()
+			sSchuetze = ResultSet.getString(1) + &quot; &quot; + ResultSet.getString(2)
+		
+			REM ***** Schreibe Platzierung Ringe in Berichtstabelle *****
+			Query = &quot;INSERT INTO &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Geldpreise_Bericht&quot;&quot; (&quot;&quot;Schiesstag&quot;&quot;,&quot;&quot;Platz_S&quot;&quot;,&quot;&quot;Name_Serie&quot;&quot;,&quot;&quot;Serie&quot;&quot;,&quot;&quot;Klasse&quot;&quot;) VALUES (&quot;&amp; nSchiesstag &amp;&quot;,&quot;&amp; r + 1 &amp;&quot;,&apos;&quot;&amp; sSchuetze &amp;&quot;&apos;,&quot;&amp; Liste_Ring(r, 1) &amp;&quot;,&apos;&quot;&amp; sKlassen &amp;&quot;&apos;)&quot;
+
+			REM Msgbox Query
+
+			Statement.executeUpdate(Query)
+			
+		Next r
+		
+		For t = 0 to tZaehler - 1
+			REM ***** Schreibe Platzierung Teiler in Tabelle *****
+			Query = &quot;INSERT INTO &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Geldpreise&quot;&quot; (&quot;&quot;Saison&quot;&quot;,&quot;&quot;Schiesstag&quot;&quot;,&quot;&quot;SchuetzenID&quot;&quot;,&quot;&quot;Plazierung_Teiler&quot;&quot;,&quot;&quot;Teiler&quot;&quot;,&quot;&quot;Betrag&quot;&quot;,&quot;&quot;Jugend&quot;&quot;) VALUES (&quot;&amp; gSaison &amp;&quot;,&quot;&amp; nSchiesstag &amp;&quot;,&quot;&amp; Liste_Teiler(t, 0) &amp;&quot;,&quot;&amp; t + 1 &amp;&quot;,&quot;&amp; Str(Liste_Teiler(t, 1)) &amp;&quot;,&quot;&amp; Str(Liste_Teiler(t, 2)) &amp;&quot;,&quot;&amp; bJugend &amp;&quot;)&quot;
+			Statement.executeUpdate(Query)
+	
+			Query = &quot;SELECT &quot;&quot;Name&quot;&quot;, &quot;&quot;Vorname&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; Liste_Teiler(t, 0) &amp;&quot;&quot;
+			ResultSet = Statement.executeQuery(Query)
+		
+			ResultSet.last()
+			sSchuetze = ResultSet.getString(1) + &quot; &quot; + ResultSet.getString(2)
+	
+			REM ***** Schreibe Platzierung Teiler in Berichtstabelle *****
+			Query = &quot;UPDATE &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Geldpreise_Bericht&quot;&quot; SET &quot;&quot;Platz_T&quot;&quot; =  &quot;&amp; t + 1 &amp;&quot;, &quot;&quot;Name_Teiler&quot;&quot; = &apos;&quot;&amp; sSchuetze &amp;&quot;&apos;, &quot;&quot;Teiler&quot;&quot; = &quot;&amp; Str(Liste_Teiler(t, 1)) &amp;&quot; WHERE &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; AND &quot;&quot;Platz_S&quot;&quot; = &quot;&amp; t + 1 &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; sKlassen &amp;&quot;&apos;&quot;
+			Statement.executeUpdate(Query)
+	
+		Next t
+
+	End If
+
+End Sub
+
+REM ***** Makro zur Auswertung der Fleischpreise *****
+Sub Fleischpreise(ByVal nSchiesstag As Integer)
+
+	Dim mKlasse() As String 
+	Dim mSchuetze() As Long 
+	Dim iZaehler, i, nZaehler, n, jZaehler As Integer
+	Dim Fleisch_Schiesstag As Integer
+	Dim bFound As Boolean
+	Dim Erg As Integer
+	Dim Schuetze_Zufall As Long
+	Dim sTyp As String
+	Dim nZufall As Integer
+	
+	REM ***** Schiesstag ermitteln an dem das letzte Mal Fleisch geschossen wurde *****
+	Query = &quot;SELECT MAX(&quot;&quot;Schiesstag&quot;&quot;) FROM &quot;&quot;Schiesstage&quot;&quot; WHERE &quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; AND &quot;&quot;Fleisch&quot;&quot; = &apos;True&apos; AND &quot;&quot;Schiesstag&quot;&quot; &lt; &quot;&amp; nSchiesstag &amp;&quot;&quot;
+	ResultSet = Statement.executeQuery(Query)
+
+	ResultSet.last()
+
+	If ResultSet.getInt(1) = 0 Then
+
+		Fleisch_Schiesstag = -1
+
+	Else
+
+		Fleisch_Schiesstag = ResultSet.getInt(1)
+
+	End If
+
+	REM ***** Ermittle Klassen die heute Fleisch geschossen haben *****
+	Query = &quot;SELECT &quot;&quot;Klasse&quot;&quot; FROM &quot;&quot;Fleischpreise_Schiesstag&quot;&quot; WHERE &quot;&quot;Fleisch&quot;&quot; = TRUE AND &quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; ORDER BY &quot;&quot;Klasse&quot;&quot; ASC&quot;
+	ResultSet = Statement.executeQuery(Query)
+	
+	ResultSet.last()
+	iZaehler = ResultSet.getrow()
+
+	If iZaehler &gt; 0 Then
+		ReDim mKlasse(iZaehler - 1)
+			
+		For i = 1 to iZaehler
+	
+			REM ***** Speichere Klassen die Fleisch geschssen haben in Array *****
+			ResultSet.absolute(i)
+
+			mKlasse(i - 1) = ResultSet.getString(1)
+			
+		Next i
+
+		For i = 0 To iZaehler - 1
+							
+			REM ***** Ermittle ob LG oder LP Klasse *****
+			Query = &quot;SELECT &quot;&quot;LG&quot;&quot;, &quot;&quot;LP&quot;&quot; FROM &quot;&quot;Schuetzenklassen&quot;&quot; WHERE &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+			ResultSet = Statement.executeQuery(Query)
+
+			ResultSet.last()
+			
+			bVar1 = ResultSet.getBoolean(1)
+			bVar2 = ResultSet.getBoolean(2)
+
+			REM ***** Überprüfe, ob ein Ergebnis geliefert wurde *****
+			If ResultSet.getrow() &gt; 0 Then
+
+				If (ResultSet.getBoolean(1) = TRUE) AND (ResultSet.getBoolean(2) = FALSE) Then
+				
+					sTyp = &quot;LG&quot;
+
+				Else
+
+					sTyp = &quot;LP&quot;
+
+				End If
+
+			Else
+			
+				MsgBox &quot;Fehler bei Auswertung Fleisch!&quot; &amp; Chr(13) &amp; &quot;Keine LG/LP Klasse gefunden!&quot;, 16, &quot;Fehler&quot;
+
+				REM ***** Beende Makro, wenn keine Saison gefunden wurde *****
+				Exit Sub
+
+			End If
+			
+			REM ***** Initialisierung Suchvariable *****
+			bFound = false
+
+			Query = &quot;SELECT &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie1&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Ergebnis&quot;&quot; FROM &quot;&quot;Schuetzen&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot; WHERE &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; = &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;SchuetzenID&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos; AND &quot;&quot;Schuetzen&quot;&quot;.&quot;&quot;Fleisch_&quot;&amp; sTyp &amp;&quot;&quot;&quot; = &apos;True&apos; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Einteilung_Klassen&quot;&quot;.&quot;&quot;Saison&quot;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Schiesstag&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; AND &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Saison&quot;&quot; = &quot;&amp; gSaison &amp;&quot; ORDER BY &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Serie1&quot;&quot; DESC, &quot;&quot;&quot;&amp; sTyp &amp;&quot;_Ergebnisse_Schiesstag&quot;&quot;.&quot;&quot;Ergebnis&quot;&quot; DESC&quot;
+			ResultSet = Statement.executeQuery(Query)
+
+			ResultSet.last()
+
+			nZaehler = ResultSet.getrow()
+
+			REM ***** Prüfe ob in der Klasse überhaupt Schuetzen geschossen haben *****
+			If nZaehler &gt; 0 Then
+
+				ReDim mSchuetze(nZaehler - 1,1)
+	
+				For n = 1 to nZaehler
+	
+					REM ***** Speichere Ergebnisse in Array *****
+					ResultSet.absolute(n)
+
+					mSchuetze(n-1,0) = ResultSet.getInt(1)
+					mSchuetze(n-1,1) = ResultSet.getLong(2)
+			
+				Next n
+	
+				REM ***** Initialisierung Laufvariable *****
+				n = 0
+	
+				REM ***** Vergabe 1.Preis Fleisch
+				Do
+					REM **** Überprüfe, ob Schütze das letzte Mal den 1.Preis bekommen hat *****
+					Query = &quot;SELECT &quot;&quot;Platz1&quot;&quot; FROM &quot;&quot;Fleischpreise_Saison&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(n,1) &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+					ResultSet = Statement.executeQuery(Query)
+
+					ResultSet.last()
+	
+					Erg = ResultSet.getInt(1)
+					
+					If Not (Erg = Fleisch_Schiesstag) Then
+
+						If Erg = 0 Then
+
+							Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz1&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(n,1) &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+							Statement.executeUpdate(Query)
+	
+							Query = &quot;INSERT INTO &quot;&quot;Fleischpreise_Ergebnisse_Schiesstag&quot;&quot; (&quot;&quot;Schiesstag&quot;&quot;, &quot;&quot;Klasse&quot;&quot;, &quot;&quot;Platz&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Serie&quot;&quot;) VALUES (&quot;&amp; nSchiesstag &amp;&quot;, &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;, 1, &quot;&amp; mSchuetze(n,1) &amp;&quot;, &quot;&amp; mSchuetze(n,0) &amp;&quot;)&quot;
+							Statement.executeUpdate(Query)
+						
+							bFound = true
+
+							mSchuetze(n,1) = 0
+
+						End If
+
+					Else
+
+						mSchuetze(n,1) = 0
+
+					End If
+	
+					n = n + 1
+
+				Loop While (n &lt; nZaehler) AND (Not bFound)
+
+			End If		
+
+			REM ***** 1.Preis konnte nicht vergeben werden *****
+			If Not bFound Then
+
+				Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot; FROM &quot;&quot;Fleischpreise_Saison&quot;&quot; WHERE &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos; AND &quot;&quot;Platz1&quot;&quot; IS NULL&quot;
+				ResultSet = Statement.executeQuery(Query)
+	
+				ResultSet.last()
+				jZaehler = ResultSet.getrow()
+
+				if jZaehler &gt; 1 Then
+				
+					nZufall = Zufallsgenerator(jZaehler)
+
+				Else
+
+					nZufall = 0
+				
+				End if
+				
+				ResultSet.absolute(nZufall)
+				Schuetze_Zufall = ResultSet.getLong(1)
+	
+				Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz1&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; Schuetze_Zufall &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+				Statement.executeUpdate(Query)
+	
+				Query = &quot;INSERT INTO &quot;&quot;Fleischpreise_Ergebnisse_Schiesstag&quot;&quot; (&quot;&quot;Schiesstag&quot;&quot;, &quot;&quot;Klasse&quot;&quot;, &quot;&quot;Platz&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Serie&quot;&quot;) VALUES (&quot;&amp; nSchiesstag &amp;&quot;, &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;, 1, &quot;&amp; Schuetze_Zufall &amp;&quot;, 0)&quot;
+				Statement.executeUpdate(Query)
+
+			End If
+
+			REM ***** Initialisierung Variablen *****
+			n = 0
+			bFound = false
+			
+			If nZaehler &gt; 0 Then
+
+				REM ***** Vergabe 2.Preis Fleisch *****
+				Do
+					If Not (mSchuetze(n,1) = 0) Then
+				
+						REM **** Überprüfe, ob Schütze das letzte Mal den 1.Preis bekommen hat *****
+						Query = &quot;SELECT &quot;&quot;Platz1&quot;&quot; FROM &quot;&quot;Fleischpreise_Saison&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(n,1) &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+						ResultSet = Statement.executeQuery(Query)
+
+						ResultSet.last()
+	
+						Erg = ResultSet.getInt(1)
+					
+						If Not (Erg = Fleisch_Schiesstag) Then
+
+							REM **** Überprüfe, ob Schütze schon 2x den 2.Preis bekommen hat *****
+							Query = &quot;SELECT &quot;&quot;Platz2_1&quot;&quot;, Platz2_2 FROM &quot;&quot;Fleischpreise_Saison&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(n,1) &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+							ResultSet = Statement.executeQuery(Query)
+
+							ResultSet.last()
+	
+							If ResultSet.getInt(1) = 0  Then
+
+								Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz2_1&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(n,1) &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+								Statement.executeUpdate(Query)
+	
+								Query = &quot;INSERT INTO &quot;&quot;Fleischpreise_Ergebnisse_Schiesstag&quot;&quot; (&quot;&quot;Schiesstag&quot;&quot;, &quot;&quot;Klasse&quot;&quot;, &quot;&quot;Platz&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Serie&quot;&quot;) VALUES (&quot;&amp; nSchiesstag &amp;&quot;, &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;, 2, &quot;&amp; mSchuetze(n,1) &amp;&quot;, &quot;&amp; mSchuetze(n,0) &amp;&quot;)&quot;
+								Statement.executeUpdate(Query)
+						
+								bFound = true
+								mSchuetze(n,1) = 0
+						
+							ElseIf ResultSet.getInt(2) = 0 Then
+
+								Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz2_2&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(n,1) &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+								Statement.executeUpdate(Query)
+	
+								Query = &quot;INSERT INTO &quot;&quot;Fleischpreise_Ergebnisse_Schiesstag&quot;&quot; (&quot;&quot;Schiesstag&quot;&quot;, &quot;&quot;Klasse&quot;&quot;, &quot;&quot;Platz&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Serie&quot;&quot;) VALUES (&quot;&amp; nSchiesstag &amp;&quot;, &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;, 2, &quot;&amp; mSchuetze(n,1) &amp;&quot;, &quot;&amp; mSchuetze(n,0) &amp;&quot;)&quot;
+								Statement.executeUpdate(Query)
+						
+								bFound = true
+								mSchuetze(n,1) = 0
+
+							End If
+
+						Else
+
+							mSchuetze(n,1) = 0
+
+						End If
+
+					End If
+	
+					n = n + 1
+
+				Loop While (n &lt; nZaehler) AND (Not bFound)
+
+			End If
+
+			REM ***** 2.Preis konnte nicht vergeben werden *****
+			If Not bFound Then
+
+				Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Platz2_1&quot;&quot;, &quot;&quot;Platz2_2&quot;&quot; FROM &quot;&quot;Fleischpreise_Saison&quot;&quot; WHERE &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos; AND (&quot;&quot;Platz2_1&quot;&quot; IS NULL OR &quot;&quot;Platz2_2&quot;&quot; IS NULL) AND (&quot;&quot;Platz1&quot;&quot; IS NULL OR &quot;&quot;Platz1&quot;&quot; &lt; &quot;&amp; Fleisch_Schiesstag &amp;&quot;)&quot;
+				ResultSet = Statement.executeQuery(Query)
+	
+				ResultSet.last()
+
+				jZaehler = ResultSet.getrow()
+				
+				if jZaehler &gt; 1 Then
+				
+					nZufall = Zufallsgenerator(jZaehler)
+
+				Else
+
+					nZufall = 0
+				
+				End if
+				
+				ResultSet.absolute(nZufall)
+				Schuetze_Zufall = ResultSet.getLong(1)
+	
+				If ResultSet.getInt(2) = 0  Then
+
+					Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz2_1&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; Schuetze_Zufall &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+
+				Else
+
+					Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz2_2&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; Schuetze_Zufall &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+
+				End If
+	
+				Statement.executeUpdate(Query)
+	
+				Query = &quot;INSERT INTO &quot;&quot;Fleischpreise_Ergebnisse_Schiesstag&quot;&quot; (&quot;&quot;Schiesstag&quot;&quot;, &quot;&quot;Klasse&quot;&quot;, &quot;&quot;Platz&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Serie&quot;&quot;) VALUES (&quot;&amp; nSchiesstag &amp;&quot;, &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;, 2, &quot;&amp; Schuetze_Zufall &amp;&quot;, 0)&quot;
+				Statement.executeUpdate(Query)
+
+			End If
+	
+			REM ***** Initialisierung Variablen *****
+			n = 0
+			bFound = false
+
+			If nZaehler &gt; 0 Then
+
+				REM ***** Vergabe 3.Preis Fleisch *****
+				Do
+					If Not (mSchuetze(n,1) = 0) Then
+				
+						REM **** Überprüfe, ob Schütze das letzte Mal den 1.Preis bekommen hat *****
+						Query = &quot;SELECT &quot;&quot;Platz1&quot;&quot; FROM &quot;&quot;Fleischpreise_Saison&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(n,1) &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+						ResultSet = Statement.executeQuery(Query)
+
+						ResultSet.last()
+	
+						Erg = ResultSet.getInt(1)
+					
+						If Not (Erg = Fleisch_Schiesstag) Then
+
+							REM **** Überprüfe, ob Schütze schon 2x den 3.Preis bekommen hat *****
+							Query = &quot;SELECT &quot;&quot;Platz3_1&quot;&quot;, Platz3_2 FROM &quot;&quot;Fleischpreise_Saison&quot;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(n,1) &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+							ResultSet = Statement.executeQuery(Query)
+
+							ResultSet.last()
+	
+							If ResultSet.getInt(1) = 0  Then
+
+								Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz3_1&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(n,1) &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+								Statement.executeUpdate(Query)
+	
+								Query = &quot;INSERT INTO &quot;&quot;Fleischpreise_Ergebnisse_Schiesstag&quot;&quot; (&quot;&quot;Schiesstag&quot;&quot;, &quot;&quot;Klasse&quot;&quot;, &quot;&quot;Platz&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Serie&quot;&quot;) VALUES (&quot;&amp; nSchiesstag &amp;&quot;, &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;, 3, &quot;&amp; mSchuetze(n,1) &amp;&quot;, &quot;&amp; mSchuetze(n,0) &amp;&quot;)&quot;
+								Statement.executeUpdate(Query)
+						
+								bFound = true
+								mSchuetze(n,1) = 0
+						
+							ElseIf ResultSet.getInt(2) = 0 Then
+
+								Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz3_2&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; mSchuetze(n,1) &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+								Statement.executeUpdate(Query)
+	
+								Query = &quot;INSERT INTO &quot;&quot;Fleischpreise_Ergebnisse_Schiesstag&quot;&quot; (&quot;&quot;Schiesstag&quot;&quot;, &quot;&quot;Klasse&quot;&quot;, &quot;&quot;Platz&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Serie&quot;&quot;) VALUES (&quot;&amp; nSchiesstag &amp;&quot;, &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;, 3, &quot;&amp; mSchuetze(n,1) &amp;&quot;, &quot;&amp; mSchuetze(n,0) &amp;&quot;)&quot;
+								Statement.executeUpdate(Query)
+						
+								bFound = true
+								mSchuetze(n,1) = 0
+
+							End If
+
+						Else
+
+							mSchuetze(n,1) = 0
+
+						End If
+
+					End If
+	
+					n = n + 1
+
+				Loop While (n &lt; nZaehler) AND (Not bFound)
+
+			End If
+
+			REM ***** 3.Preis konnte nicht vergeben werden *****
+			If Not bFound Then
+
+				Query = &quot;SELECT &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Platz3_1&quot;&quot;, &quot;&quot;Platz3_2&quot;&quot; FROM &quot;&quot;Fleischpreise_Saison&quot;&quot; WHERE &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos; AND (&quot;&quot;Platz3_1&quot;&quot; IS NULL OR &quot;&quot;Platz3_2&quot;&quot; IS NULL) AND (&quot;&quot;Platz1&quot;&quot; IS NULL OR &quot;&quot;Platz1&quot;&quot; &lt; &quot;&amp; Fleisch_Schiesstag &amp;&quot;) AND (&quot;&quot;Platz2_1&quot;&quot; IS NULL OR &quot;&quot;Platz2_1&quot;&quot; &lt; &quot;&amp; nSchiesstag &amp;&quot;) AND (&quot;&quot;Platz2_2&quot;&quot; IS NULL OR &quot;&quot;Platz2_2&quot;&quot; &lt; &quot;&amp; nSchiesstag &amp;&quot;)&quot;
+				ResultSet = Statement.executeQuery(Query)
+	
+				ResultSet.last()
+				jZaehler = ResultSet.getrow()
+	
+				if jZaehler &gt; 1 Then
+				
+					nZufall = Zufallsgenerator(jZaehler)
+
+				Else
+
+					nZufall = 0
+				
+				End if
+				
+				ResultSet.absolute(nZufall)
+				Schuetze_Zufall = ResultSet.getLong(1)
+	
+				If ResultSet.getInt(2) = 0  Then
+
+					Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz3_1&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; Schuetze_Zufall &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+
+				Else
+
+					Query = &quot;UPDATE &quot;&quot;Fleischpreise_Saison&quot;&quot; SET &quot;&quot;Platz3_2&quot;&quot; = &quot;&amp; nSchiesstag &amp;&quot; WHERE &quot;&quot;SchuetzenID&quot;&quot; = &quot;&amp; Schuetze_Zufall &amp;&quot; AND &quot;&quot;Klasse&quot;&quot; = &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;&quot;
+	
+				End If
+	
+				Statement.executeUpdate(Query)
+	
+				Query = &quot;INSERT INTO &quot;&quot;Fleischpreise_Ergebnisse_Schiesstag&quot;&quot; (&quot;&quot;Schiesstag&quot;&quot;, &quot;&quot;Klasse&quot;&quot;, &quot;&quot;Platz&quot;&quot;, &quot;&quot;SchuetzenID&quot;&quot;, &quot;&quot;Serie&quot;&quot;) VALUES (&quot;&amp; nSchiesstag &amp;&quot;, &apos;&quot;&amp; mKlasse(i) &amp;&quot;&apos;, 3, &quot;&amp; Schuetze_Zufall &amp;&quot;, 0)&quot;
+				Statement.executeUpdate(Query)
+
+			End If
+
+		Next i
+
+	End If
+
+End Sub
+</script:module>
