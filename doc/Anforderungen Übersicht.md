@@ -1,8 +1,3 @@
-Hier ist das aktualisierte Anforderungsdokument (Software Requirements Specification - SRS v2.2), das die technischen Ergebnisse der Vorprüfung (WM-Shot `.wmk`, OpticScore XML, JSON-Live), die flexible Multi-Channel Ingestion, die dynamische Klassen-/Kontingent-Steuerung sowie das erweiterte Sonder-Schießspiele-Modul vollständig als Anforderungen formuliert.
-
----
-
-```markdown
 # Anforderungsdokument: TruderRinge (v2.2)
 **Projekt:** Nachfolge-Vereinssoftware für die SG Gemütlichkeit Trudering e.V.  
 **Ziel:** Ablösung der Alt-Software *Schuetzenliste* durch ein dynamisches, regelbasiertes System mit flexibler Anbindung an DISAG-OpticScore und WM-Shot.
@@ -133,6 +128,3 @@ Das System verarbeitet Schuss- und Seriendaten flexibel über drei Prioritätsst
 * **Frontend:** Angular 17+ Web-App für die Schießleitung (PC/Tablet) + Capacitor Android-App für Schützen.
 * **Datenbank:** PostgreSQL / SQLite mit getrennten Relationen für Mitglieder, Wochen-Klassenkontingente, verarbeitete Schüsse, Saisontabellen und Zweier-Teams.
 
-```
-
-```
