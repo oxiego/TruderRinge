@@ -207,3 +207,9 @@ CREATE TABLE couples_competition (
 4. **Phase 4: Mobile App Target (Android)**
 * Integration von Capacitor in Angular.
 * Bereitstellung und Test des Android-APKs für Schützen.
+
+## Netztopologie & Systemgrenzen
+
+* **Netzwerk-Integration:** Der Linux-Host ist per Ethernet am Vereins-Switch (DHCP-Router) angebunden und greift per SMB-Mount (Samba) lesend auf den Freigabeordner der WM-Shot `.wmk`-Dateien auf dem Windows Central PC zu.
+* **Stand-Tablets (TabLock):** Werden rein als Steuergeräte für die DISAG OpticScore SIZ/Messrahmen genutzt. Kein direkter Zugriff durch TruderRinge.
+* **Anzeigen-Verteilung:** DISAG Visualisierung steuert die Stand-Trefferbilder auf Beamern; TruderRinge stellt das Schießleiter-Dashboard und dynamische Zwischenstände (Fleischpreis, Schießspiele) per Angular Web-App bereit.

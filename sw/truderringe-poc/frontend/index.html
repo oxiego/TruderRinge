@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TruderRinge - Schießleiter Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen" x-data="truderRingeApp()" x-init="fetchData()">
+
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center shadow-lg">
+        <div class="flex items-center space-x-3">
+            <div class="bg-emerald-600 text-white p-2 rounded-lg font-bold text-xl">TR</div>
+            <div>
+                <h1 class="text-xl font-bold tracking-wide">TruderRinge</h1>
+                <p class="text-xs text-slate-400">SG Gemütlichkeit Trudering e.V.</p>
+            </div>
+        </div>
+        <button @click="triggerImport()" :disabled="loading" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded-lg shadow flex items-center space-x-2 transition">
+            <span x-show="!loading">📥 WM-Shot .wmk Import auslösen</span>
+            <span x-show="loading" class="animate-pulse">Importiere Daten...</span>
+        </button>
+    </header>
+
+    <!-- Main Content -->
+    <main class="p-6 max-w-7xl mx-auto space-y-6">
+
+        <div x-show="statusMessage" x-text="statusMessage" class="bg-emerald-900/50 border border-emerald-500 text-emerald-200 px-4 py-3 rounded-lg text-sm"></div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            <!-- Fleischpreis Leaderboard -->
+            <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-amber-400 flex items-center space-x-2">
+                        <span>🥩</span>
+                        <span>Fleischpreis Wertung (Best-Teiler)</span>
+                    </h2>
+                    <span class="text-xs bg-slate-700 px-2.5 py-1 rounded-full text-slate-300">Schuss 1–20</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-700 text-xs text-slate-400 uppercase">
+                                <th class="pb-2">Rang</th>
+                                <th class="pb-2">Schütze</th>
+                                <th class="pb-2">Klasse</th>
+                                <th class="pb-2 text-right">Teiler</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-700/50 text-sm">
+                            <template x-for="(row, index) in fleischpreisList" :key="index">
+                                <tr class="hover:bg-slate-700/30 transition">
+                                    <td class="py-2.5 font-bold" x-text="index + 1"></td>
+                                    <td class="py-2.5 font-medium text-slate-200" x-text="row.member_name"></td>
+                                    <td class="py-2.5">
+                                        <span class="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-300" x-text="row.class"></span>
+                                    </td>
+                                    <td class="py-2.5 text-right font-mono font-bold text-amber-400" x-text="row.teiler.toFixed(1)"></td>
+                                </tr>
+                            </template>
+                            <tr x-show="fleischpreisList.length === 0">
+                                <td colspan="4" class="py-4 text-center text-slate-500 text-xs">Noch keine Daten importiert. Klicke oben auf Import.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pokal / Jahrestabelle -->
+            <div class="bg-slate-800 border border-slate-700 rounded-xl p-5 shadow">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-sky-400 flex items-center space-x-2">
+                        <span>🏆</span>
+                        <span>Pokal / Jahrestabelle</span>
+                    </h2>
+                    <span class="text-xs bg-slate-700 px-2.5 py-1 rounded-full text-slate-300">Ringe & Zehntel</span>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-700 text-xs text-slate-400 uppercase">
+                                <th class="pb-2">Schütze</th>
+                                <th class="pb-2">Klasse</th>
+                                <th class="pb-2 text-center">Schüsse</th>
+                                <th class="pb-2 text-right">Ringe (Zehntel)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-700/50 text-sm">
+                            <template x-for="(row, index) in pokalList" :key="index">
+                                <tr class="hover:bg-slate-700/30 transition">
+                                    <td class="py-2.5 font-medium text-slate-200" x-text="row.name"></td>
+                                    <td class="py-2.5">
+                                        <span class="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-300" x-text="row.class"></span>
+                                    </td>
+                                    <td class="py-2.5 text-center text-slate-400" x-text="row.shot_count"></td>
+                                    <td class="py-2.5 text-right font-mono font-bold text-sky-400">
+                                        <span x-text="row.total_rings"></span>
+                                        <span class="text-xs text-sky-300 font-normal" x-text="`(${row.total_tenths.toFixed(1)})`"></span>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="pokalList.length === 0">
+                                <td colspan="4" class="py-4 text-center text-slate-500 text-xs">Noch keine Daten importiert. Klicke oben auf Import.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        function truderRingeApp() {
+            return {
+                fleischpreisList: [],
+                pokalList: [],
+                loading: false,
+                statusMessage: "",
+                async fetchData() {
+                    try {
+                        const fpRes = await fetch("/results/fleischpreis");
+                        this.fleischpreisList = await fpRes.json();
+
+                        const pRes = await fetch("/results/pokal");
+                        this.pokalList = await pRes.json();
+                    } catch (e) {
+                        console.error("Fehler beim Laden:", e);
+                    }
+                },
+                async triggerImport() {
+                    this.loading = true;
+                    this.statusMessage = "";
+                    try {
+                        const res = await fetch("/import/wmk", { method: "POST" });
+                        const data = await res.json();
+                        this.statusMessage = "✅ Import erfolgreich: " + data.imported_shots + " Schüsse verarbeitet und nach Sequenzierungs-Regeln verteilt.";
+                        await this.fetchData();
+                    } catch (e) {
+                        this.statusMessage = "❌ Fehler beim Importieren der Daten.";
+                    } finally {
+                        this.loading = false;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
