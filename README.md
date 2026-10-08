@@ -1,6 +1,12 @@
+## Truderinge
+
+![Screenshot der TruderRinge-Oberfläche](doc/Screenshot.png)
+
 ## Schnellstart / Anwendung starten
 
 Das Projekt ist in Backend/PoC und Angular-Frontend unterteilt (`/sw`). Um die Anwendung lokal zu starten, führst du Backend und Frontend in zwei separaten Terminal-Fenstern aus:
+
+
 
 ### 1. Backend starten (FastAPI)
 ```bash
@@ -32,4 +38,5 @@ npm start
 ```
 
 Die Benutzeroberfläche ist danach im Browser unter **`http://localhost:4200`** erreichbar und verbindet sich automatisch mit dem laufenden Backend.
+
 
