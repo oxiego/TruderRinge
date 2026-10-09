@@ -1,130 +1,123 @@
-# Anforderungsdokument: TruderRinge (v2.2)
-**Projekt:** Nachfolge-Vereinssoftware für die SG Gemütlichkeit Trudering e.V.  
-**Ziel:** Ablösung der Alt-Software *Schuetzenliste* durch ein dynamisches, regelbasiertes System mit flexibler Anbindung an DISAG-OpticScore und WM-Shot.
+# Anforderungen-Übersicht TruderRinge (v3.0)
 
----
+**Projekt:** Nachfolgeanwendung für die Schützengesellschaft Gemütlichkeit Trudering e.V.
+**Stand:** Oktober 2026
 
-## 1. Systemübersicht & Ingestion-Architektur
+## 1. Zweck und Quellenbasis
 
-Das System verarbeitet Schuss- und Seriendaten flexibel über drei Prioritätsstufen für die Datenerfassung:
+Diese Übersicht fasst den fachlichen Umfang der Neuentwicklung zusammen. Maßgebliche fachliche Quelle ist [ANFORDERUNGEN_NEUENTWICKLUNG.md](./ANFORDERUNGEN_NEUENTWICKLUNG.md), das beobachtete Verhalten der LibreOffice-Base-Altanwendung beschreibt.
 
-```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       DATENERFASSUNG & INGESTION-ROUTING                    │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ PRIO 1: Offline / Tagesabschluss ➔ WM-Shot DB (.wmk Reader/Parser)          │
-│ PRIO 2: Offline / Export         ➔ DISAG OpticScore XML Importer            │
-│ PRIO 3: Online / Live-Fallback    ➔ DISAG JSON-Live / Direct DB Poller      │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      WÖCHENTLICHER SCHIESSABEND-ABLAUF                      │
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 1. Schützen-Anmeldung & Modus-Wahl per Klasse (Gewehr, Pistole, Damen...)   │
-│                                                                             │
-│ 2. Dynamische Schuss-Zuordnung (Schuss 1–20) je nach Klassen-Status:        │
-│    ├── STATUS A (Fleischpreis aktiv):  Schuss 1–20 ➔ Fleischpreis (Teiler) │
-│    └── STATUS B (Fleischpreise aus):   Schuss 1–20 ➔ Pokal (Ring/Zehntel)  │
-│                                                                             │
-│ 3. Folge-Schüsse (Schuss 21–30+):                                           │
-│    └── Schuss 21+ ➔ Pokal, Serie, Vortag oder Sonder-Schießspiele            │
-└─────────────────────────────────────────────────────────────────────────────┘
+Die Datei [Schuetzen_sqlite_migration.sql](./Schuetzen_sqlite_migration.sql) ist ein SQLite-Export des HSQLDB-Bestands der Altanwendung. Sie belegt Tabellen, Spalten und vorhandene Beispieldaten für Mitglieder, Klassen, Saisons, Schießtage, Ergebnisse und Auswertungen. Sie ist **keine WM-Shot-`.wmk`-Datei** und beschreibt nicht deren internes Schema. Das SQL-Skript schaltet Fremdschlüsselprüfungen beim Import aus; sein Schema ist daher als Migrationsquelle, nicht als ungeprüftes Produktionsschema zu behandeln.
 
-```
+Anforderungen aus früheren Entwürfen zu wöchentlichen Moduswechseln, Standbelegung, Best-of-N, Android, Live-Import und frei konfigurierbaren Traditionswettbewerben sind nicht durch diese Bestandsquellen als bestehende Vereinsregeln bestätigt. Sie sind Erweiterungsoptionen und müssen vor einer Umsetzung fachlich beschlossen werden.
 
----
+## 2. Fachlicher Kernumfang
 
-## 2. Detaillierte Feature-Anforderungen
+TruderRinge verwaltet Mitglieder, LG-/LP-Teilnahmen, Saisons, Schießtage, saisonbezogene Klasseneinteilungen, Tagesergebnisse und die daraus erzeugten Vereinswertungen. LG und LP teilen sich Stammdaten und Saisonabläufe, bleiben aber fachlich unterscheidbare Disziplinen.
 
-### Feature 2.1: Multi-Channel Ingestion Layer (`Button: Daten-Import / Synchronisation`)
+### FR-01 – Mitglieder und Stammdaten
 
-* **FR-101 (WM-Shot .wmk Import - Prio 1):** Auslesen und Parsen von WM-Shot-Datenbankdateien (`.wmk`) nach Schießende zur automatischen Übernahme von Schützen, Serienergebnissen (1–4), Ringen, Zehntelwerten, Einzel-Teilern sowie der Kennzeichnung von Probe- vs. Wertungsschüssen.
-* **FR-102 (DISAG OpticScore XML Import - Prio 2):** Import von strukturierten OpticScore-XML-Exporten mit vollständigen Einzelschussdaten (Ringe, Zehntel, Teiler, Schussnummer, Status, Zeitstempel).
-* **FR-103 (JSON-Live / Direct Poller - Prio 3):** Optionaler Echtzeit-Worker / Listener zum direkten Abgriff von Live-Schussdaten via UDP/WebSocket oder direkte DB-Abfrage als Fallback-Lösung.
+- Mitglieder mit eindeutiger achtstelliger Pass-/Mitgliedsnummer, Vor- und Nachname, Geburtsdatum, Geschlecht und Aktivstatus verwalten.
+- LG- und LP-Teilnahme, Fleischberechtigung je Disziplin, Hilfsmittel und Vorjahresschnitte abbilden.
+- Bei Neuanlage während einer laufenden Saison die saisonbezogene Klasseneinteilung anbieten.
+- Für noch unbekannte Nummern unterstützt der Altbestand temporäre Nummern ab `99999999`; Vergabe und spätere Ersetzung müssen nachvollziehbar sein.
 
----
+### FR-02 – Saison und Klasseneinteilung
 
-### Feature 2.2: Klassen- & Kontingent-Steuerung (`Button: Schießabend-Setup`)
+- Höchstens eine Saison ist aktiv. Die Saison hat Jahresbezeichnung, Beginn, Ende und getrennte Abschlussstatus für LG und LP.
+- Klassen werden administrativ konfiguriert: Disziplin, Serienzahl, Jugend-/Damenmerkmale, Hilfsmittel, Fleischberechtigung, Einlage und Aktivstatus.
+- Aktive und für LG bzw. LP gemeldete Mitglieder werden je Disziplin in Saisonklassen eingeteilt. Sondergruppen werden nur separat geführt, wenn dafür aktive Klassen bestehen.
+- Allgemeine Klassen berücksichtigen den Vorjahresschnitt; die Klasseneinteilung vergibt saisonbezogene Nummern (LG ab 1, LP ab 81).
+- Jugendgrenze, Klassendefinitionen und Verteilungsrandfälle sind vor Umsetzung mit dem Verein zu bestätigen.
 
-* **FR-201 (Klassenspezifischer Status):** Der Schießmodus (Fleischpreis vs. Pokal) lässt sich pro Schützenklasse (z. B. *Pistole*, *Gewehr Herren*, *Damen*, *Jugend*) unabhängig steuern.
-* **FR-202 (Kontingent-Verwaltung / Fleischpreis-Stop):**
-* Wenn das Kontingent für Fleischpreise einer Klasse aufgebraucht ist (alle Preise verschossen), schaltet das System für diese Klasse automatisch oder manuell auf **Status B (Pokal)** um.
-* *Beispiel:* Da Pistolen-Schützen oft früher fertig sind oder weniger Beteiligte stellen, kann deren Fleischpreis-Phase früher beendet werden, während die Gewehr-Klasse noch auf Fleischpreise schießt.
+### FR-03 – Schießtag und Fleischpreise
 
+- Ein Schießtag gehört zu einer aktiven Saison, hat eine fortlaufende Nummer, ein Datum und einen Gesamtstatus für das Fleischschießen.
+- Pro Datum darf nicht versehentlich ein zweiter Schießtag derselben Saison angelegt werden.
+- Die Fleischpreis-Auswahl wird zusätzlich je Klasse gespeichert. Konfigurierte Fleisch-Tage je Klasse werden bei Auswahl berücksichtigt; ein globales Ein/Aus allein reicht fachlich nicht aus.
+- Beim ersten Schießtag wird der Saisonbeginn gesetzt. Der Saisonabschluss verwendet das Datum des letzten Schießtages.
+- Die Altanwendung schlägt den Fleischstatus gegenüber dem vorigen Schießtag alternierend vor. Regeln und manuelle Übersteuerung sind im Zielsystem sichtbar zu machen.
 
-* **FR-203 (Wochen-Turnus / Wechsel-Logik):** Konfiguration der Wochen-Regelsets durch die Schießleitung (z. B. *Ungerade Woche = Fokus Fleischpreis*, *Gerade Woche = Fokus Pokal*).
+### FR-04 – Tagesergebnisse und Serien
 
----
+- Tagesergebnisse werden getrennt für LG und LP erfasst und einem Mitglied, einer Saison, einem Schießtag und einer Disziplin zugeordnet.
+- Die saisonbezogene Schützennummer dient in der Erfassung zur Auswahl; der Name wird zur Kontrolle angezeigt.
+- Zahl der Serien richtet sich nach der Klasse. Der Bestand enthält bis zu vier zusammengefasste Serien und ein Gesamtergebnis sowie Rohdaten auf Serien-/Schussebene.
+- In den vorliegenden Tabellen sind LG-Einzelschüsse für zehn Schüsse je Serie und LP-Einzelschüsse für fünf Schüsse je Serie angelegt. Ungeschossene Serien wurden im Altverhalten mit null aufgefüllt.
+- Für Tagesergebnisse werden zusätzlich Pokal- und zweiter Programm-/Teilerwert geführt. Teiler-Randfälle und die Abhängigkeit vom Fleischstatus sind fachlich zu prüfen.
+- Eingaben müssen unvollständige Serien, Nullwerte und auffällige Teiler verständlich behandeln. Ergebnisse müssen nach dem Speichern korrigierbar sein; Änderungen und Neuberechnungen dürfen nicht still erfolgen.
 
-### Feature 2.3: Dynamischer Ingestion-Splitter (`Button: Rule Engine`)
+### FR-05 – Tagesauswertung und Preise
 
-* **FR-301 (Dynamische Regelanwendung Schuss 1–20):**
-* **Fall A (Fleischpreis-Woche & Kontingent offen):** Schuss 1–20 wird als **Fleischpreis / Tiefschuss (Teiler)** gewertet.
-* **Fall B (Pokal-Woche ODER Fleischpreise verschossen):** Schuss 1–20 wird direkt der **Pokal- / Jahrestabelle (Ringe / Zehntel)** gutgeschrieben.
+- Tagesauswertungen erzeugen LG-/LP-Ranglisten, Geldpreise, Pokalteiler und Fleischpreislisten je Schießtag und Klasse.
+- Serienrangfolgen vergleichen die vier Serien in absteigender Reihenfolge als Tie-Breaker; Teilerwertungen sortieren den kleineren Teiler besser.
+- Geldpreise berücksichtigen Klasse, Einlage, Jugendstatus und Teilnehmerzahl. Die Altformeln einschließlich Rundung und Randfällen sind vor Übernahme fachlich abzunehmen.
+- Fleischpreis-Kandidaten berücksichtigen Fleischberechtigung und Klasse. Die Bestimmung nutzt erste Serie und Gesamtergebnis; Wiederholungsvermeidung und Gleichstände müssen gegen Vereinsbeispiele verifiziert werden.
+- Eine Neuberechnung ersetzt die vorherigen Tages-Auswertungsdaten nicht unbemerkt: Auslöser, Zeitpunkt, Regelversion und geänderte Resultate sind nachvollziehbar.
 
+### FR-06 – Saisonwertungen und Abschluss
 
-* **FR-302 (Folgeserien / Schuss 21+):**
-* Schuss 21–30 wird je nach Konfiguration für den Pokal-Nachtrag, Vortagsserien oder Preisschießen gewertet.
-* Schuss 31+ wird für Schießspiele, Glücksscheiben oder Gaudischießen eingeordnet.
+- Je Disziplin werden Vereinsmeisterschaft/Jahresschnitt, Geldpreise, Pokalteiler, Königsschießen und Schmankerlpokal ausgewertet.
+- LG-spezifisch kommen Diepold- und Röhrner-Wanderpokal hinzu. Saisonberichte führen unter anderem Schnitt, Vorjahresvergleich, Platzierungen und Preisresultate zusammen.
+- Eine LG-Wertung setzt vorhandene Schießtage und mindestens ein LG-Ergebnis je Schießtag voraus. Eine LP-Wertung wird ausgeführt, wenn LP-Ergebnisse vorhanden sind.
+- Der Saisonabschluss schreibt die aktuellen Schnitte als Vorjahresschnitte fort und deaktiviert die Saison. Das beobachtete Altverhalten verlangt abgeschlossene LG- und LP-Auswertungen; die gewünschte Behandlung einer nicht genutzten Disziplin ist zu bestätigen.
+- Saisonlöschung ist eine gesonderte, destruktive Aktion und benötigt explizite Berechtigung, Bestätigung und Aufbewahrungsregeln.
 
+### FR-07 – Sonderwettbewerbe und Berichte
 
-* **FR-303 (Disziplinen & Faktoren):** Berücksichtigung unterschiedlicher Scheiben- und Wertungsarten (Luftgewehr vs. Luftpistole mit eigenem Teiler-Faktor).
+- Im Bestand belegt sind Königsschießen und Schmankerlpokal (LG/LP), Pokalteiler und Vereinsmeisterschaft (LG/LP) sowie Diepold- und Röhrner-Wanderpokal (LG).
+- Königsschießen trennt Jugend und Erwachsene; niedrigerer Teiler bedeutet bessere Platzierung. Teiler werden mit einer Nachkommastelle gespeichert.
+- PDF-Berichte umfassen Schützenliste, Tagesergebnisse und Ranglisten, Fleischpreise, Klasseneinteilungen, Saison-Schützenberichte, Königsschießen, Schmankerlpokal, Wanderpokale und Saisonabschluss.
+- Berichtspfade und Dateinamen sind konfigurierbar. Überschreiben und erneute Ausgabe müssen nachvollziehbar sein.
+- Er-und-Sie-, Oster-, Martini-, Nikolaus- und weitere frei konfigurierbare Wettbewerbe sind mögliche Erweiterungen, nicht Bestandteil der belegten Bestandsbaseline.
 
----
+### FR-08 – Migration und Betrieb
 
-### Feature 2.4: Schützen- & Stammdatenverwaltung (`Button: Mitglieder`)
+- Mitglieds-, Saison-, Schießtag-, Klassen-, Ergebnis-, Preis- und Berichtsdaten aus dem HSQLDB-Bestand müssen kontrolliert migrierbar sein.
+- Der bereitgestellte SQLite-Export ist als Quelle zu prüfen und stichprobenartig gegen Altberichte abzugleichen. Temporäre `Temp_...`-Tabellen sind keine dauerhafte fachliche Historie.
+- Eindeutigkeit und Beziehungen sind im Zielsystem mit Constraints durchzusetzen. Fehlerhafte oder verwaiste Quelldaten werden protokolliert und zur Klärung ausgewiesen.
+- Personenbezogene Daten benötigen angemessene Zugriffsrechte, sichere Backups und ein geregeltes Aufbewahrungs-/Löschkonzept.
+- Backup und vollständige Wiederherstellung müssen regelmäßig in einer Testumgebung überprüft werden.
 
-* **FR-401 (Mitglieder-Profil):** Erfassung aller Stammdaten (Name, Vorname, Geburtsdatum, Standard-Klasse, Status).
-* **FR-402 (DISAG- & WM-Shot Mapping):** Verknüpfung der internen Vereins-ID mit der DISAG-Startnummer, Chipkarte oder WM-Shot-Schützen-ID.
-* **FR-403 (Klassen-Zuordnung):** Zuordnung zu Disziplinen (z. B. *Luftpistole*, *Luftgewehr*, *Auflage*), um die automatische Schuss-Regel anzuwenden.
+## 3. Externe Ergebniserfassung
 
----
+Der Bestands-SQL-Export und der externe Wettkampfimport sind getrennte Datenwege:
 
-### Feature 2.5: Standbelegung & Anmeldung (`Button: Standbelegung`)
+1. **WM-Shot `.wmk` nach Schießtag:** bevorzugter technischer Importweg, sofern eine reale Datei der eingesetzten Version die benötigten Daten verlässlich enthält. Zu prüfen sind Identität, Datum, Disziplin, Serie/Schussnummer, Ring- und Zehntelwerte, Teiler sowie Probe-/Wertungsschuss.
+2. **OpticScore XML:** möglicher alternativer Offline-Import. Verfügbarkeit und Struktur für den konkreten WM-Shot-Wettkampf sind anhand eines realen Exports zu bestätigen.
+3. **JSON-Live/DB-Poller:** nicht erforderlich für die beschriebene Tagesabschlussverarbeitung; nur nach bestätigtem Vereinsbedarf neu bewerten.
 
-* **FR-501 (Schnell-Anmeldung):** Der Schießleiter weist einem Schützen beim Betreten des Standes einen freien DISAG-Stand zu.
-* **FR-502 (Automatische Regel-Anzeige):** Das System zeigt beim Anmelden sofort an, welcher Modus für die Klasse des Schützen heute aktiv ist (z. B. *"Pistole: Pokal (Fleischpreise beendet)"* vs. *"Gewehr: Fleischpreis"*).
+Der Import muss Vorschau, Validierung unbekannter oder mehrdeutiger Schützen, Fehlerbericht, Wiederholbarkeit und Herkunftsnachweis unterstützen. Fehlende Quellfelder dürfen nicht durch scheinbar gültige Standardwerte ersetzt werden. Eine 40-Schuss-Wertung darf erst als abgenommen gelten, wenn reale Importdaten mit der Referenzauswertung verglichen wurden.
 
----
+## 4. Nichtfunktionale Anforderungen
 
-### Feature 2.6: Tages- & Saisonauswertung (`Button: Saisontabellen & Ergebnisse`)
+- **Datenintegrität:** eindeutige Mitgliedsnummern, konsistente Saison-/Schießtagzuordnung und referenzielle Beziehungen.
+- **Nachvollziehbarkeit:** Auditspur für Stammdatenkorrekturen, Ergebnisänderungen, Importläufe und Neuberechnungen.
+- **Reproduzierbarkeit:** zentrale, versionierte Wertungsregeln und aus Quelldaten erneut erzeugbare Berichte.
+- **Datenschutz:** rollenbasierte Zugriffe auf Geburtsdaten, Mitgliedsnummern und Ergebnisse.
+- **Konfigurierbarkeit:** Klassen, Serien, Einlagen, Altersgrenzen, Fleischquoten, Preisregeln und Berichtspfade nicht in Code oder festen Betriebspfaden verstecken.
+- **Betriebsfähigkeit:** dokumentierte Installation, Migration, Backup, Wiederherstellung und Fehlerbehebung.
 
-* **FR-601 (Flexibles Saisonkonto):** Aggregation aller Wochentage über die Saison unter Berücksichtigung der Pokal-Schüsse.
-* **FR-602 (Best-of-N Wertung):** Berechnung der Jahresmeister über die $N$ besten Schießabende einer Saison pro Klasse (inkl. automatischer Streichergebnisse).
-* **FR-603 (Fleischpreis-Siegerliste):** Erstellung tagesaktueller Gewinnlisten sortiert nach Best-Teilern zur Preisverteilung am Ende des Schießabends.
+## 5. Vor Umsetzung zu bestätigen
 
----
+- Aktuelle Klassen, Jugendgrenze, LG-/LP-Serienzahl und Umgang mit unvollständigen Serien.
+- Mindestteilnahme, Vereinsmeisterschaftsformel, Gleichstände und fehlende Schießtage.
+- Geldpreisformeln, Rundung, Währungsformat und kleine/ungerade Teilnehmergruppen.
+- Fleischpreis-Tie-Breaker, Kontingente und Regeln gegen wiederholte Gewinner.
+- Gültige Korrekturen nach Tagesabschluss und Umgang mit bereits exportierten PDFs.
+- Saisonabschluss, wenn nur eine Disziplin genutzt wurde; Saisonlöschung und Aufbewahrung.
+- Rollen, Mehrbenutzerbetrieb, Backup-Aufbewahrung und Wiederherstellungsziel.
+- Felder, Kennungen und Probe-/Wertungsschuss-Markierung im konkreten WM-Shot-/XML-Export.
+- Ob Livebetrieb, Standbelegung, Wochen-Regelsets, Best-of-N oder weitere Traditionswettbewerbe tatsächlich benötigt werden.
 
-### Feature 2.7: Sonder- & Traditionsschießspiele Modul (`Button: Schießspiele / Traditionsschießen`)
+## 6. Abnahmetests
 
-* **FR-701 (Königsschießen):** Verdeckte Auswertung bester Tiefschüsse (Teiler) ohne Live-Anzeige für die Schützen.
-* **FR-702 (Gaudischießen / Vorgabe):** Modul für Vorgabe-Teiler, Teiler-Differenzen oder Glücksscheiben.
-* **FR-703 (Er-und-Sie-Schießen):**
-* Paar-Bildung aus zwei Schützen (z. B. Dame + Herr oder Zulosung).
-* Kombinierte Auswertung: Aufsummierung der Einzelergebnisse (Ringe oder Teiler-Summe) des Paares zu einer gemeinsamen Team-Rangliste.
-
-
-* **FR-704 (Osterschießen):**
-* Unterstützung von Spezial- / Motivscheiben mit reduzierter / begrenzter Schussanzahl $X$.
-* Erfassung fester Maximal-Schusszahlen pro Schütze (z. B. strikt nur 3 oder 5 Spezial-Schuss auf Ostereierscheiben erlaubt).
-
-
-* **FR-705 (Martinischießen):**
-* Saisonal geführter Wettbewerb (Martinsgans-Schießen).
-* Auswertung nach kombiniertem Schlüssel (z. B. bester Teiler + beste Deckserie).
-
-
-* **FR-706 (Nikolausschießen):**
-* Jahresabschluss-/Jubiläumsschießen mit spezifischem Preisschlüssel und Direkt-Ausgabe der Platzierungen.
-
-
-
----
-
-## 3. Tech-Stack & Systemumgebung
-
-* **Backend:** Python 3.11+ (FastAPI) mit asynchronem Ingestion-Modul (`.wmk`-Parser, XML-Reader) und dynamischer `RuleEngine`-Klasse.
-* **Frontend:** Angular 17+ Web-App für die Schießleitung (PC/Tablet) + Capacitor Android-App für Schützen.
-* **Datenbank:** PostgreSQL / SQLite mit getrennten Relationen für Mitglieder, Wochen-Klassenkontingente, verarbeitete Schüsse, Saisontabellen und Zweier-Teams.
-
+- Nur eine Saison kann aktiv sein; Nummerierung und Klasseneinteilung sind je Disziplin stabil und korrekt.
+- Ein Datum lässt keinen unbeabsichtigten doppelten Schießtag zu; Fleischstatus und Auswahl je Klasse bleiben unterscheidbar.
+- LG- und LP-Serien ergeben nachvollziehbare Einzel-, Serien- und Gesamtergebnisse; ungültige oder fehlende Werte werden angezeigt.
+- Tagesranglisten und Preisberechnungen stimmen für abgenommene Referenzfälle einschließlich Gleichständen und Randgrößen.
+- Korrigierte Ergebnisse lassen sich mit dokumentierter Historie erneut auswerten; Berichte entsprechen den gespeicherten Eingaben.
+- Saisonwertungen, Vorjahresschnitt-Fortschreibung und Abschluss stimmen für LG und LP mit Referenzfällen überein.
+- Migration der gelieferten SQLite-Quelle ist reproduzierbar; Abweichungen und nicht auflösbare Beziehungen werden ausgewiesen.
+- Ein realer WMK-/XML-Testimport wird auf Schützen, Datum, Serien, Schüsse, Teiler und Schussstatus gegen WM-Shot/OpticScore geprüft.
+- PDFs landen im konfigurierten Ziel; ein Backup lässt sich vollständig in einer Testumgebung wiederherstellen.

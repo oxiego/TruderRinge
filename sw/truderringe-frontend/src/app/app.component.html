@@ -1,134 +1,170 @@
-<div class="shell">
+<div class="app-shell">
   <aside class="sidebar">
-    <a class="brand" (click)="setView('dashboard')" role="button" tabindex="0" aria-label="Zur Übersicht">
-      <img class="brand-logo" src="assets/truderringe-logo.jpeg" alt="TruderRinge Vereinslogo">
-      <span class="brand-caption"><small>SG Gemütlichkeit<br>Trudering e.V.</small></span>
-    </a>
+    <button type="button" class="brand" (click)="setSection('overview')" aria-label="Zur Übersicht">
+      <img src="assets/truderringe-logo.jpeg" alt="" class="brand-logo">
+      <span><strong>TruderRinge</strong><small>SG Gemütlichkeit Trudering</small></span>
+    </button>
+
+    <p class="nav-caption">VEREINSVERWALTUNG</p>
     <nav aria-label="Hauptnavigation">
-      <ng-container *ngFor="let group of navigationGroups">
-        <button class="nav-group" [id]="'nav-group-' + group.id" [attr.aria-expanded]="group.expanded" [attr.aria-controls]="'nav-items-' + group.id" (click)="group.expanded = !group.expanded">
-          <span>{{ group.label }}</span><span class="nav-chevron" [class.chevron-expanded]="group.expanded" aria-hidden="true"></span>
-        </button>
-        <div *ngIf="group.expanded" class="nav-group-items" [id]="'nav-items-' + group.id" role="group" [attr.aria-labelledby]="'nav-group-' + group.id">
-          <button *ngFor="let item of group.items" (click)="setView(item.id)" [class.active]="view === item.id" class="nav-item">
-            <span class="nav-dot"></span>{{ item.label }}
-            <span *ngIf="item.id === 'import'" class="nav-badge">3</span>
-          </button>
-        </div>
-      </ng-container>
+      <button *ngFor="let item of navigation" class="nav-link" [class.active]="section === item.id" (click)="setSection(item.id)">
+        <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span><span>{{ item.label }}</span>
+        <span *ngIf="item.id === 'import'" class="nav-arrow">↗</span>
+      </button>
     </nav>
-    <div class="sidebar-bottom">
-      <span class="connection-dot"></span>
-      <span><strong>PoC-Backend</strong><small>API-Verbindung prüfen</small></span>
+
+    <div class="sidebar-footer">
+      <span class="api-indicator" [class.connected]="apiAvailable"></span>
+      <span><strong>{{ apiAvailable ? 'Backend verbunden' : 'Backend nicht erreichbar' }}</strong><small>TruderRinge · Vereinsverwaltung</small></span>
     </div>
   </aside>
 
-  <main class="workspace">
+  <main class="main-area">
     <header class="topbar">
-      <div class="breadcrumb">Schießleitung <span>/</span> <strong>{{ currentNavigationLabel }}</strong></div>
-      <div class="top-actions"><span class="date-label">{{ today | date:'EEEE, d. MMMM y':'':'de' }}</span><button class="icon-button" title="Ergebnisse neu laden" aria-label="Ergebnisse neu laden" (click)="loadData()">↻</button></div>
+      <div class="breadcrumbs"><span>Vereinsverwaltung</span><span class="slash">/</span><strong>{{ sectionLabel }}</strong></div>
+      <div class="topbar-actions">
+        <span class="today-label">{{ today | date:'EEEE, d. MMMM y':'':'de' }}</span>
+        <button class="icon-button" type="button" (click)="refresh()" aria-label="Daten neu laden" title="Daten neu laden">↻</button>
+        <span class="avatar" aria-label="Schießleitung">S</span>
+      </div>
     </header>
 
-    <section class="page-content">
-      <div *ngIf="statusMessage" class="notice" [class.notice-success]="statusKind === 'success'" [class.notice-error]="statusKind === 'error'" [class.notice-info]="statusKind === 'info'" role="status">
-        <span class="notice-mark">{{ statusKind === 'error' ? '!' : statusKind === 'success' ? '✓' : 'i' }}</span>{{ statusMessage }}
-        <button class="notice-close" aria-label="Meldung schließen" (click)="statusMessage = ''">×</button>
-      </div>
+    <div class="content">
+      <output *ngIf="notice" class="notice" [class.notice-success]="noticeKind === 'success'" [class.notice-error]="noticeKind === 'error'" [class.notice-info]="noticeKind === 'info'">
+        <span class="notice-icon">{{ noticeKind === 'success' ? '✓' : noticeKind === 'error' ? '!' : 'i' }}</span>
+        <span>{{ notice }}</span>
+        <button type="button" class="notice-close" (click)="clearNotice()" aria-label="Meldung schließen">×</button>
+      </output>
 
-      <ng-container [ngSwitch]="view">
-        <section *ngSwitchCase="'dashboard'">
-          <div class="page-heading"><div><p class="eyebrow">DONNERSTAG · SCHIESSABEND</p><h1>Guten Abend, Schießleitung.</h1><p class="lead">Der Überblick für den laufenden Schießabend.</p></div><button class="button button-primary" (click)="setView('import')"><span>＋</span> Daten übernehmen</button></div>
-          <div class="metric-grid">
-            <article class="metric"><span class="metric-label">Aktive Mitglieder</span><strong>{{ members.length }}</strong><small>im lokalen Mitgliederbestand</small><span class="metric-symbol green">M</span></article>
-            <article class="metric"><span class="metric-label">Belegte Stände</span><strong>{{ assignments.length }}<small class="metric-total"> / {{ stands.length }}</small></strong><small>{{ freeStands.length }} Stände verfügbar</small><span class="metric-symbol orange">S</span></article>
-            <article class="metric"><span class="metric-label">Fleischpreis aktiv</span><strong>{{ activeFleischpreisClasses }}</strong><small>Klassen mit offenem Kontingent</small><span class="metric-symbol blue">T</span></article>
-            <article class="metric"><span class="metric-label">Importierter Schussbestand</span><strong>{{ fleischpreisList.length + pokalList.length }}</strong><small>Ergebnisse im Backend</small><span class="metric-symbol red">↗</span></article>
+      <ng-container [ngSwitch]="section">
+        <section *ngSwitchCase="'overview'">
+          <div class="welcome-row">
+            <div><p class="eyebrow">SG GEMÜTLICHKEIT TRUDERING E.V.</p><h1>Vereinsübersicht</h1><p class="lead">Mitglieder, Saisonbetrieb und Schießtage auf einen Blick.</p></div>
+            <button class="button button-primary" (click)="setSection('members')"><span>＋</span> Mitglied erfassen</button>
           </div>
 
-          <div class="section-heading"><div><p class="eyebrow">TAGESAUSWERTUNG</p><h2>Ergebnisse im Überblick</h2></div><button class="text-button" (click)="setView('season')">Saison öffnen <span>→</span></button></div>
-          <div class="results-grid">
-            <article class="panel result-panel"><div class="panel-heading"><div><span class="section-icon icon-orange">T</span><div><h3>Fleischpreis</h3><p>Beste Teiler des Abends</p></div></div><span class="tag tag-orange">{{ fleischpreisList.length }} Ergebnisse</span></div>
-              <div class="table-wrap"><table><thead><tr><th>Rang</th><th>Schütze</th><th>Klasse</th><th class="align-right">Teiler</th></tr></thead><tbody>
-                <tr *ngFor="let row of fleischpreisList; let i = index"><td><span class="rank" [class.rank-first]="i === 0">{{ i + 1 }}</span></td><td class="person-cell">{{ row.member_name }}</td><td><span class="class-pill">{{ row.class }}</span></td><td class="align-right score-orange">{{ row.teiler | number:'1.1-1' }}</td></tr>
-                <tr *ngIf="fleischpreisList.length === 0"><td colspan="4" class="empty-cell">Noch keine Fleischpreis-Ergebnisse importiert.</td></tr>
-              </tbody></table></div>
-            </article>
-            <article class="panel result-panel"><div class="panel-heading"><div><span class="section-icon icon-blue">P</span><div><h3>Pokalwertung</h3><p>Ringe und Zehntel im Pokal</p></div></div><span class="tag tag-blue">{{ pokalList.length }} Schützen</span></div>
-              <div class="table-wrap"><table><thead><tr><th>Schütze</th><th>Klasse</th><th class="align-center">Schüsse</th><th class="align-right">Ringe · Zehntel</th></tr></thead><tbody>
-                <tr *ngFor="let row of pokalList"><td class="person-cell">{{ row.name }}</td><td><span class="class-pill">{{ row.class }}</span></td><td class="align-center">{{ row.shot_count }}</td><td class="align-right score-blue">{{ row.total_rings }} <small>({{ row.total_tenths | number:'1.1-1' }})</small></td></tr>
-                <tr *ngIf="pokalList.length === 0"><td colspan="4" class="empty-cell">Noch keine Pokalergebnisse importiert.</td></tr>
-              </tbody></table></div>
-            </article>
+          <div class="summary-grid">
+            <article class="summary-card"><div class="card-top"><span>Mitglieder</span><span class="summary-icon icon-green">◎</span></div><strong>{{ members.length }}</strong><small>{{ activeMembers }} aktive Einträge im Bestand</small></article>
+            <article class="summary-card"><div class="card-top"><span>Aktive Saison</span><span class="summary-icon icon-blue">◷</span></div><strong class="summary-unset">Noch nicht angelegt</strong><small>Saisonverwaltung wird im Backend ergänzt</small></article>
+            <article class="summary-card"><div class="card-top"><span>Nächster Schießtag</span><span class="summary-icon icon-orange">◉</span></div><strong class="summary-unset">Noch nicht geplant</strong><small>Kein Schießtag im Backend hinterlegt</small></article>
           </div>
-          <div class="section-heading compact-heading"><div><p class="eyebrow">KLASSENSTEUERUNG</p><h2>Modus heute</h2></div><button class="text-button" (click)="setView('setup')">Setup bearbeiten <span>→</span></button></div>
-          <div class="class-status-list"><div class="class-status-row" *ngFor="let item of classSetups"><span class="status-indicator" [class.indicator-active]="item.mode === 'Fleischpreis'" [class.indicator-pokal]="item.mode === 'Pokal'"></span><strong>{{ item.name }}</strong><span class="muted">{{ item.discipline }}</span><span class="tag" [class.tag-orange]="item.mode === 'Fleischpreis'" [class.tag-blue]="item.mode === 'Pokal'">{{ item.mode }}</span><span class="muted status-remaining">{{ item.remainingPrizes }} Preise offen</span></div></div>
-        </section>
 
-        <section *ngSwitchCase="'import'">
-          <div class="page-heading"><div><p class="eyebrow">DATENERFASSUNG · TAGESABSCHLUSS</p><h1>Datenimport & Synchronisation</h1><p class="lead">Ergebnisse aus WM-Shot und DISAG in den Vereinsbestand übernehmen.</p></div></div>
-          <div class="priority-note"><strong>Empfohlene Reihenfolge</strong><span>WM-Shot .wmk ist der vorgesehene Tagesabschluss-Import. XML- und Live-Anbindungen sind noch nicht im Backend implementiert.</span></div>
-          <div class="source-grid">
-            <button class="source-card" [class.source-selected]="selectedImportSource === 'wmk'" (click)="selectedImportSource = 'wmk'"><span class="source-priority">PRIORITÄT 01</span><span class="source-icon">W</span><strong>WM-Shot Datenbank</strong><span>.wmk · Offline / Tagesabschluss</span><span class="source-state state-ready">PoC-Endpunkt vorhanden</span></button>
-            <button class="source-card" [class.source-selected]="selectedImportSource === 'xml'" (click)="selectedImportSource = 'xml'"><span class="source-priority">PRIORITÄT 02</span><span class="source-icon source-icon-blue">X</span><strong>OpticScore XML</strong><span>.xml · strukturierter Export</span><span class="source-state">Importer ausstehend</span></button>
-            <button class="source-card" [class.source-selected]="selectedImportSource === 'live'" (click)="selectedImportSource = 'live'"><span class="source-priority">PRIORITÄT 03</span><span class="source-icon source-icon-red">↗</span><strong>JSON Live / Poller</strong><span>UDP / WebSocket · optional</span><span class="source-state">Schnittstelle ausstehend</span></button>
+          <div class="section-title-row"><div><p class="eyebrow">ARBEITSABLAUF</p><h2>Der Vereinsbetrieb</h2></div></div>
+          <div class="workflow-grid">
+            <button class="workflow-card" (click)="setSection('members')"><span class="workflow-number">01</span><span class="workflow-icon icon-green">◎</span><strong>Mitglieder & Disziplinen</strong><small>Stammdaten, LG-/LP-Teilnahme und Fleischberechtigung pflegen.</small><span class="workflow-link">Mitglieder öffnen <b>→</b></span></button>
+            <button class="workflow-card" (click)="setSection('season')"><span class="workflow-number">02</span><span class="workflow-icon icon-blue">◷</span><strong>Saison & Einteilung</strong><small>Saison, Klassen und saisonbezogene Schützennummern verwalten.</small><span class="workflow-link">Plan ansehen <b>→</b></span></button>
+            <button class="workflow-card" (click)="setSection('shooting-days')"><span class="workflow-number">03</span><span class="workflow-icon icon-orange">◉</span><strong>Schießtag & Ergebnisse</strong><small>Schießtage eröffnen und Tagesergebnisse nachvollziehbar übernehmen.</small><span class="workflow-link">Plan ansehen <b>→</b></span></button>
+            <button class="workflow-card" (click)="setSection('results')"><span class="workflow-number">04</span><span class="workflow-icon icon-violet">↗</span><strong>Wertungen & Berichte</strong><small>Tages- und Saisonwertungen sowie Vereinsberichte ausgeben.</small><span class="workflow-link">PoC-Status ansehen <b>→</b></span></button>
           </div>
-          <article class="panel form-panel"><div class="panel-heading"><div><span class="section-icon icon-green">↓</span><div><h3>Import vorbereiten</h3><p>Schießdatum und Quelldatei auswählen</p></div></div></div>
-            <div class="form-grid"><label class="field"><span>Schießdatum</span><input type="date" [(ngModel)]="competitionDate"></label><label class="field"><span>Quelldatei</span><input type="file" [accept]="selectedImportSource === 'wmk' ? '.wmk' : '.xml'" (change)="onImportFileSelected($event)"><small class="field-hint">{{ selectedImportFile || (selectedImportSource === 'wmk' ? 'Aktuell verarbeitet das Backend eine konfigurierte Serverdatei.' : 'Dateiauswahl wird erst mit dem Import-Endpunkt aktiv.') }}</small></label></div>
-            <div class="import-checks"><span>Enthaltene Auswertung</span><span>✓ Schütze & Identifikation</span><span>✓ Serien, Ringe & Zehntel</span><span>✓ Teiler & Probeschüsse</span></div>
-            <div class="panel-footer"><span class="muted">Import ist derzeit auf den WMK-PoC-Endpunkt begrenzt.</span><button class="button button-primary" (click)="triggerImport()" [disabled]="loading"><span *ngIf="!loading">↓</span>{{ loading ? 'Import läuft…' : 'Import starten' }}</button></div>
-          </article>
-        </section>
 
-        <section *ngSwitchCase="'setup'">
-          <div class="page-heading"><div><p class="eyebrow">STEUERUNG · SCHIESSABEND</p><h1>Schießabend-Setup</h1><p class="lead">Modus und Fleischpreis-Kontingent für jede Klasse einzeln verwalten.</p></div><button class="button button-primary" (click)="saveSetup()">Änderungen übernehmen</button></div>
-          <div class="setup-banner"><span class="banner-icon">↻</span><div><strong>Wochen-Turnus</strong><small>Regel für den saisonalen Wechsel des Wertungsfokus</small></div><select [(ngModel)]="weekRule"><option value="odd-fleischpreis">Ungerade Woche: Fleischpreis-Fokus</option><option value="even-pokal">Gerade Woche: Pokal-Fokus</option></select></div>
-          <article class="panel table-panel"><div class="panel-heading"><div><span class="section-icon icon-orange">K</span><div><h3>Klassen & Kontingente</h3><p>Moduswechsel wirkt unabhängig pro Schützenklasse</p></div></div><span class="tag tag-neutral">{{ competitionDate | date:'d. MMM y' }}</span></div>
-            <div class="table-wrap"><table class="setup-table"><thead><tr><th>Schützenklasse</th><th>Disziplin</th><th>Wertung Schuss 1–20</th><th>Preise offen</th><th>Kontingent</th></tr></thead><tbody><tr *ngFor="let item of classSetups"><td class="person-cell">{{ item.name }}</td><td><select class="table-select" [(ngModel)]="item.discipline"><option *ngFor="let discipline of disciplines" [ngValue]="discipline">{{ discipline }}</option></select></td><td><select class="table-select mode-select" [(ngModel)]="item.mode"><option value="Fleischpreis">Fleischpreis · Teiler</option><option value="Pokal">Pokal · Ringe</option></select></td><td><input class="number-input" type="number" min="0" [(ngModel)]="item.remainingPrizes" [disabled]="item.mode === 'Pokal'"></td><td><div class="quota-track"><span [style.width.%]="item.mode === 'Pokal' ? 0 : item.remainingPrizes * 15"></span></div></td></tr></tbody></table></div>
-            <div class="rule-callout"><strong>Automatischer Wechsel</strong><span>Bei Kontingent 0 schaltet die Klasse auf Pokal. Andere Klassen bleiben unverändert im aktiven Modus.</span></div>
-          </article>
-        </section>
-
-        <section *ngSwitchCase="'rules'">
-          <div class="page-heading"><div><p class="eyebrow">STEUERUNG · WERTUNGSLOGIK</p><h1>Rule Engine</h1><p class="lead">Schussbereiche, Zielwertungen und Disziplinfaktoren konfigurieren.</p></div><button class="button button-primary" (click)="saveRules()">Regelsatz übernehmen</button></div>
-          <div class="rule-flow"><article class="rule-card"><span class="rule-number">01–20</span><h3>Erste Wertung</h3><p>Modus aus Wochenregel und Klassenkontingent</p><label class="field"><span>Wenn Fleischpreis aktiv</span><select [(ngModel)]="initialActiveTarget"><option>Fleischpreis · bester Teiler</option><option>Pokal · Ringe und Zehntel</option></select></label><label class="field"><span>Wenn Pokalmodus</span><select [(ngModel)]="initialPokalTarget"><option>Pokal · Ringe und Zehntel</option><option>Fleischpreis · bester Teiler</option></select></label></article>
-            <article class="rule-card"><span class="rule-number rule-blue">21–30</span><h3>Folgeserie</h3><p>Zusatzschüsse klassifizieren und der Zielwertung zuordnen</p><label class="field"><span>Zielwertung</span><select [(ngModel)]="followupTarget"><option>Pokal-Nachtrag</option><option>Vortagsserie</option><option>Preisschießen</option><option>Keine Wertung</option></select></label><label class="field"><span>Serienlimit</span><input type="number" min="0" [(ngModel)]="followupLimit"></label></article>
-            <article class="rule-card"><span class="rule-number rule-red">31+</span><h3>Sonderbereich</h3><p>Schießspiele und Glücksscheiben abgrenzen</p><label class="field"><span>Zielwertung</span><select [(ngModel)]="specialTarget"><option>Schießspiel / Sonderwertung</option><option>Gaudischießen</option><option>Keine Wertung</option></select></label><label class="field"><span>Probe-Schüsse einbeziehen</span><select [(ngModel)]="includePractice"><option>Nein</option><option>Ja</option></select></label></article></div>
-          <article class="panel form-panel discipline-panel"><div class="panel-heading"><div><span class="section-icon icon-blue">D</span><div><h3>Disziplinen & Teilerfaktoren</h3><p>Wertungsfaktor je Scheiben- und Disziplinart</p></div></div></div><div class="factor-list"><label *ngFor="let item of classSetups" class="factor-row"><span><strong>{{ item.discipline }}</strong><small>{{ item.name }}</small></span><span class="factor-input"><input type="number" min="0.1" step="0.1" [(ngModel)]="item.factor"><small>× Teiler</small></span></label></div></article>
-          <p class="integration-note">Regeln werden im aktuellen PoC-Backend fest vorgegeben; diese Eingaben sind ein UI-Entwurf und noch nicht persistent.</p>
+          <div class="content-note"><span class="note-mark">i</span><span><strong>Entwicklungsstand</strong> Die Mitgliederverwaltung und der WMK-Dateiimport sind API-gestützt. Saison-, Klassen-, Schießtag- und regelbasierte Wertungsabläufe sind fachlich beschrieben, aber im aktuellen PoC-Backend noch nicht implementiert.</span></div>
         </section>
 
         <section *ngSwitchCase="'members'">
-          <div class="page-heading"><div><p class="eyebrow">VEREIN · STAMMDATEN</p><h1>Mitglieder</h1><p class="lead">Schützenprofile, Disziplinen und externe Identifikatoren pflegen.</p></div><span class="tag tag-neutral">{{ members.length }} Einträge</span></div>
-          <article class="panel form-panel"><div class="panel-heading"><div><span class="section-icon icon-green">＋</span><div><h3>Mitglied hinzufügen</h3><p>Vereins-ID wird intern automatisch vergeben</p></div></div></div><form (ngSubmit)="addMember()"><div class="form-grid member-form-grid"><label class="field"><span>Vorname</span><input name="firstName" [(ngModel)]="newMember.firstName" required placeholder="Vorname"></label><label class="field"><span>Nachname</span><input name="lastName" [(ngModel)]="newMember.lastName" required placeholder="Nachname"></label><label class="field"><span>Geburtsdatum</span><input name="birthDate" type="date" [(ngModel)]="newMember.birthDate"></label><label class="field"><span>Standard-Klasse</span><select name="className" [(ngModel)]="newMember.className"><option *ngFor="let className of classes" [ngValue]="className">{{ className }}</option></select></label><label class="field"><span>Disziplin</span><select name="discipline" [(ngModel)]="newMember.discipline"><option *ngFor="let discipline of disciplines" [ngValue]="discipline">{{ discipline }}</option></select></label><label class="field"><span>DISAG-Startnummer</span><input name="disagId" type="number" [(ngModel)]="newMember.disagId" placeholder="z. B. 103"></label><label class="field"><span>WM-Shot-Schützen-ID</span><input name="wmShotId" [(ngModel)]="newMember.wmShotId" placeholder="Externe ID"></label><div class="field field-action"><span>&nbsp;</span><button class="button button-primary" type="submit">Mitglied anlegen</button></div></div></form></article>
-          <article class="panel table-panel member-list-panel"><div class="panel-heading"><div><span class="section-icon icon-blue">M</span><div><h3>Mitgliederverzeichnis</h3><p>Klassen- und DISAG/WM-Shot-Zuordnung</p></div></div><input class="search-input" type="search" [(ngModel)]="memberSearch" placeholder="Mitglied suchen…" aria-label="Mitglied suchen"></div><div class="table-wrap"><table><thead><tr><th>Mitglied</th><th>Klasse / Disziplin</th><th>DISAG-Nr.</th><th>WM-Shot-ID</th><th>Status</th><th></th></tr></thead><tbody><tr *ngFor="let member of filteredMembers"><td class="person-cell">{{ member.firstName }} {{ member.lastName }}</td><td>{{ member.className }}<small class="table-subline">{{ member.discipline }}</small></td><td>{{ member.disagId || '—' }}</td><td>{{ member.wmShotId || '—' }}</td><td><span class="tag" [class.tag-green]="member.active" [class.tag-neutral]="!member.active">{{ member.active ? 'Aktiv' : 'Inaktiv' }}</span></td><td><button class="row-action" (click)="toggleMember(member)">{{ member.active ? 'Deaktivieren' : 'Aktivieren' }}</button></td></tr><tr *ngIf="filteredMembers.length === 0"><td class="empty-cell" colspan="6">Keine passenden Mitglieder gefunden.</td></tr></tbody></table></div></article>
-          <p class="integration-note">Mitgliederänderungen bleiben aktuell im Browser-Arbeitsstand; ein Mitglieder-Endpunkt ist noch nicht vorhanden.</p>
-        </section>
+          <div class="welcome-row">
+            <div><p class="eyebrow">STAMMDATEN · LG & LP</p><h1>Mitglieder</h1><p class="lead">Mitgliedsdaten und Disziplinteilnahmen verwalten.</p></div>
+            <button class="button button-primary" (click)="showMemberForm = !showMemberForm"><span>＋</span> Neues Mitglied</button>
+          </div>
 
-        <section *ngSwitchCase="'stands'">
-          <div class="page-heading"><div><p class="eyebrow">VEREIN · SCHIESSBETRIEB</p><h1>Standbelegung</h1><p class="lead">Schützen schnell anmelden und den aktiven Wertungsmodus anzeigen.</p></div><span class="tag tag-green">{{ freeStands.length }} Stände frei</span></div>
-          <article class="panel form-panel"><div class="panel-heading"><div><span class="section-icon icon-orange">↗</span><div><h3>Schütze anmelden</h3><p>Freien DISAG-Stand und Mitglied zuweisen</p></div></div></div><div class="assignment-form"><label class="field"><span>Schütze</span><select [(ngModel)]="selectedMemberId"><option [ngValue]="null">Mitglied auswählen</option><option *ngFor="let member of members" [ngValue]="member.id">{{ member.firstName }} {{ member.lastName }} · {{ member.className }}</option></select></label><label class="field"><span>Freier Stand</span><select [(ngModel)]="selectedStand"><option [ngValue]="null">Stand auswählen</option><option *ngFor="let stand of freeStands" [ngValue]="stand">Stand {{ stand }}</option></select></label><button class="button button-primary" (click)="assignStandToMember()" [disabled]="freeStands.length === 0">Anmelden</button></div><div *ngIf="selectedMemberId" class="mode-preview"><span class="status-indicator" [class.indicator-active]="activeModeFor(memberById(selectedMemberId)?.className || '') === 'Fleischpreis'" [class.indicator-pokal]="activeModeFor(memberById(selectedMemberId)?.className || '') === 'Pokal'"></span><strong>{{ memberById(selectedMemberId)?.className }}:</strong><span>{{ activeModeFor(memberById(selectedMemberId)?.className || '') }}</span><small>· abhängig von Klassenstatus und Kontingent</small></div></article>
-          <div class="stand-grid"><article *ngFor="let stand of stands" class="stand-tile" [class.stand-occupied]="isStandOccupied(stand)"><div class="stand-top"><span class="stand-number">{{ stand | number:'2.0' }}</span><span class="stand-light"></span></div><ng-container *ngIf="assignmentForStand(stand) as assignment"><strong>{{ memberById(assignment.memberId)?.firstName }} {{ memberById(assignment.memberId)?.lastName }}</strong><span>{{ memberById(assignment.memberId)?.className }}</span><span class="tag" [class.tag-orange]="activeModeFor(memberById(assignment.memberId)?.className || '') === 'Fleischpreis'" [class.tag-blue]="activeModeFor(memberById(assignment.memberId)?.className || '') === 'Pokal'">{{ activeModeFor(memberById(assignment.memberId)?.className || '') }}</span><button class="release-button" (click)="releaseStand(stand)">Stand freigeben</button></ng-container><ng-container *ngIf="!isStandOccupied(stand)"><strong>Frei</strong><span>Bereit zur Zuweisung</span></ng-container></article></div>
+          <article *ngIf="showMemberForm" class="panel form-panel">
+            <div class="panel-heading"><div><p class="eyebrow">{{ editingMemberId === null ? 'NEUER EINTRAG' : 'STAMMDATEN ÄNDERN' }}</p><h2>{{ editingMemberId === null ? 'Mitglied erfassen' : 'Mitglied bearbeiten' }}</h2></div><button class="icon-button" (click)="resetMemberForm()" aria-label="Formular schließen">×</button></div>
+            <form (ngSubmit)="addMember()">
+              <div class="form-grid">
+                <label class="field"><span>Vorname <i>*</i></span><input name="firstName" [(ngModel)]="newMember.first_name" required maxlength="100" autocomplete="given-name"></label>
+                <label class="field"><span>Nachname <i>*</i></span><input name="lastName" [(ngModel)]="newMember.last_name" required maxlength="100" autocomplete="family-name"></label>
+                <label class="field"><span>Geburtsdatum <i>*</i></span><input name="birthDate" type="date" [(ngModel)]="newMember.birth_date" required></label>
+                <label class="field"><span>Geschlecht <i>*</i></span><select name="gender" [(ngModel)]="newMember.gender" required><option [ngValue]="null" disabled>Bitte wählen</option><option value="M">Männlich</option><option value="W">Weiblich</option></select></label>
+                <label class="field"><span>Mitgliedsnummer <small>8-stellig, optional</small></span><input name="memberNumber" [(ngModel)]="newMember.member_number" inputmode="numeric" maxlength="8" pattern="[0-9]{8}" placeholder="z. B. 01234567"></label>
+                <label class="field"><span>DISAG-Startnummer <small>optional</small></span><input name="disagNumber" type="number" min="1" [(ngModel)]="newMember.disag_start_number" placeholder="Für Ergebnisimport"></label>
+              </div>
+              <div class="checkbox-section">
+                <div><strong>Teilnahme & Merkmale</strong><small>Disziplinen und Fleischberechtigung getrennt festlegen.</small></div>
+                <label class="check"><input type="checkbox" name="lg" [(ngModel)]="newMember.lg_participation"><span>Luftgewehr</span></label>
+                <label class="check"><input type="checkbox" name="lp" [(ngModel)]="newMember.lp_participation"><span>Luftpistole</span></label>
+                <label class="check"><input type="checkbox" name="lgMeat" [(ngModel)]="newMember.lg_fleisch_eligible"><span>Fleisch LG</span></label>
+                <label class="check"><input type="checkbox" name="lpMeat" [(ngModel)]="newMember.lp_fleisch_eligible"><span>Fleisch LP</span></label>
+                <label class="check"><input type="checkbox" name="aids" [(ngModel)]="newMember.uses_aids"><span>Hilfsmittel</span></label>
+              </div>
+              <div class="panel-footer"><span class="muted" *ngIf="editingMemberId === null">Ohne Mitgliedsnummer wird eine temporäre 8-stellige Nummer vergeben.</span><span class="muted" *ngIf="editingMemberId !== null">DISAG-Nummern können hier für den Ergebnisimport ergänzt werden.</span><button class="button button-primary" type="submit" [disabled]="busy">{{ busy ? 'Speichert …' : editingMemberId === null ? 'Mitglied speichern' : 'Änderungen speichern' }}</button></div>
+            </form>
+          </article>
+
+          <article class="panel data-panel">
+            <div class="panel-heading list-heading"><div><p class="eyebrow">MITGLIEDERBESTAND</p><h2>{{ members.length }} Einträge</h2></div><label class="search"><span aria-hidden="true">⌕</span><input type="search" [(ngModel)]="memberSearch" placeholder="Name oder Nummer suchen" aria-label="Mitglieder suchen"></label></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Mitglied</th><th>Mitgliedsnummer</th><th>DISAG-Nr.</th><th>Disziplinen</th><th>Geschlecht</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                  <tr *ngFor="let member of filteredMembers">
+                    <td><span class="person-name">{{ member.first_name }} {{ member.last_name }}</span><small class="sub-cell">{{ member.birth_date | date:'d. MMM y':'':'de' }}</small></td>
+                    <td class="number-cell">{{ member.member_number || '—' }}</td><td>{{ member.disag_start_number ?? '—' }}</td>
+                    <td><span *ngIf="member.lg_participation" class="discipline-tag">LG</span><span *ngIf="member.lp_participation" class="discipline-tag discipline-lp">LP</span><span *ngIf="!member.lg_participation && !member.lp_participation" class="sub-cell">Keine gemeldet</span></td>
+                    <td>{{ member.gender === 'W' ? 'Weiblich' : member.gender === 'M' ? 'Männlich' : 'Nicht angegeben' }}</td>
+                    <td><span class="status-pill" [class.status-inactive]="!member.active"><span></span>{{ member.active ? 'Aktiv' : 'Inaktiv' }}</span></td>
+                    <td class="align-right"><button class="text-action" (click)="editMember(member)">Bearbeiten</button><button class="text-action" (click)="toggleMember(member)">{{ member.active ? 'Deaktivieren' : 'Aktivieren' }}</button></td>
+                  </tr>
+                  <tr *ngIf="filteredMembers.length === 0"><td colspan="7" class="empty-state">{{ members.length ? 'Keine passenden Mitglieder gefunden.' : 'Noch keine Mitglieder im Bestand. Lege den ersten Eintrag an.' }}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
         </section>
 
         <section *ngSwitchCase="'season'">
-          <div class="page-heading"><div><p class="eyebrow">AUSWERTUNG · SAISONKONTO</p><h1>Saisontabellen & Ergebnisse</h1><p class="lead">Pokalserien aggregieren, Best-of-N einstellen und Ergebnislisten exportieren.</p></div><button class="button button-secondary" (click)="exportResults()"><span>↓</span> CSV exportieren</button></div>
-          <div class="season-controls panel"><label class="field"><span>Saison</span><select [(ngModel)]="season"><option>2026/2027</option><option>2025/2026</option><option>2024/2025</option></select></label><label class="field"><span>Jahreswertung</span><select><option>Ringe und Zehntel</option><option>Ringe</option></select></label><label class="field"><span>Beste Schießabende (N)</span><input type="number" min="1" max="30" [(ngModel)]="bestOf"></label><div class="season-summary"><span class="summary-number">{{ pokalList.length }}</span><span>Schützen in der aktuellen Pokal-Auswertung</span></div></div>
-          <article class="panel table-panel"><div class="panel-heading"><div><span class="section-icon icon-blue">Σ</span><div><h3>Aktuelle Pokalwertung</h3><p>Sortierung nach Zehntel-Gesamtergebnis · {{ season }}</p></div></div><span class="tag tag-blue">Best-of-{{ bestOf }}</span></div><div class="table-wrap"><table><thead><tr><th>Rang</th><th>Schütze</th><th>Klasse</th><th class="align-center">Wertungsschüsse</th><th class="align-right">Ganze Ringe</th><th class="align-right">Zehntel gesamt</th><th>Wertung</th></tr></thead><tbody><tr *ngFor="let row of pokalList; let i = index"><td><span class="rank" [class.rank-first]="i === 0">{{ i + 1 }}</span></td><td class="person-cell">{{ row.name }}</td><td><span class="class-pill">{{ row.class }}</span></td><td class="align-center">{{ row.shot_count }}</td><td class="align-right">{{ row.total_rings }}</td><td class="align-right score-blue">{{ row.total_tenths | number:'1.1-1' }}</td><td><span class="tag tag-green">{{ i < bestOf ? 'Gewertet' : 'Streicher' }}</span></td></tr><tr *ngIf="pokalList.length === 0"><td colspan="7" class="empty-cell">Noch keine Saisonergebnisse vorhanden. Ergebnisse nach dem Import aktualisieren.</td></tr></tbody></table></div><div class="rule-callout"><strong>Hinweis zur Datenbasis</strong><span>Das aktuelle API liefert nur eine aggregierte Pokalliste ohne Saison- oder Schießabendhistorie. Best-of-N und Streichergebnisse werden daher erst nach Erweiterung der Backend-API berechnet.</span></div></article>
-          <article class="panel table-panel season-prizes"><div class="panel-heading"><div><span class="section-icon icon-orange">T</span><div><h3>Fleischpreis-Siegerliste</h3><p>Tagesaktuelle Reihenfolge nach bestem Teiler</p></div></div></div><div class="table-wrap"><table><thead><tr><th>Rang</th><th>Schütze</th><th>Klasse</th><th>Schuss</th><th class="align-right">Bester Teiler</th></tr></thead><tbody><tr *ngFor="let row of fleischpreisList; let i = index"><td>{{ i + 1 }}</td><td class="person-cell">{{ row.member_name }}</td><td>{{ row.class }}</td><td>{{ row.shot_number }}</td><td class="align-right score-orange">{{ row.teiler | number:'1.1-1' }}</td></tr><tr *ngIf="fleischpreisList.length === 0"><td colspan="5" class="empty-cell">Keine Fleischpreis-Ergebnisse vorhanden.</td></tr></tbody></table></div></article>
+          <div class="welcome-row"><div><p class="eyebrow">SAISONBETRIEB</p><h1>Saison & Klassen</h1><p class="lead">Jahresbezogene Saisonverwaltung und LG-/LP-Klasseneinteilung.</p></div></div>
+          <article class="feature-state">
+            <span class="feature-icon icon-blue">◷</span><p class="eyebrow">BACKEND-FUNKTION AUSSTEHEND</p><h2>Die Saisonverwaltung ist noch nicht angebunden.</h2>
+            <p>Die Zieloberfläche folgt dem Bestandsablauf: eine aktive Jahressaison, getrennte LG-/LP-Klasseneinteilungen, Jugendgrenze, Vorjahresschnitt und saisonbezogene Schützennummern.</p>
+            <div class="feature-checklist"><span>✓ Mitgliedsstammdaten und Disziplinteilnahme</span><span>○ Aktive Saison, Beginn/Ende und Abschlussstatus</span><span>○ Klassenkonfiguration und Einteilungsvorschau</span><span>○ LG-Nummern ab 1, LP-Nummern ab 81</span></div>
+          </article>
         </section>
 
-        <section *ngSwitchCase="'events'">
-          <div class="page-heading"><div><p class="eyebrow">AUSWERTUNG · TRADITION & SONDERWERTUNG</p><h1>Schießspiele</h1><p class="lead">Sonderwettbewerbe anlegen und ihre Wertungsparameter festlegen.</p></div></div>
-          <div class="event-tabs" role="tablist" aria-label="Sonderwettbewerb auswählen"><button *ngFor="let event of eventTypes" role="tab" [attr.aria-selected]="selectedEvent === event.id" (click)="selectedEvent = event.id; eventName = event.label" [class.event-tab-active]="selectedEvent === event.id">{{ event.label }}</button></div>
-          <div class="event-layout"><article class="panel form-panel"><div class="panel-heading"><div><span class="section-icon icon-orange">★</span><div><h3>{{ eventName }} einrichten</h3><p>Wettbewerb und Auswertungsregeln</p></div></div><span class="tag tag-neutral">{{ selectedEvent === 'ostern' ? 'Limit-Scheibe' : selectedEvent === 'koenig' ? 'Verdeckte Wertung' : 'Sonderwettbewerb' }}</span></div>
-            <div class="form-grid"><label class="field"><span>Wettbewerbsname</span><input [(ngModel)]="eventName"></label><label class="field"><span>Wettbewerbsdatum</span><input type="date" [(ngModel)]="eventDate"></label><label class="field"><span>Wertungsschlüssel</span><select [(ngModel)]="eventScoring"><option>Bester Teiler</option><option>Ringe und Zehntel</option><option>Teiler + Deckserie</option><option>Teiler-Differenz / Vorgabe</option><option>Glücksscheibe</option><option>Direkte Platzierung</option></select></label><label class="field"><span>Maximale Sonderschüsse</span><input type="number" min="1" max="40" [(ngModel)]="eventShotLimit"></label></div>
-            <div *ngIf="selectedEvent === 'er-und-sie'" class="pair-fields"><label class="field"><span>Schütze / Partner 1</span><select [(ngModel)]="pairFirstId"><option [ngValue]="null">Schütze auswählen</option><option *ngFor="let member of members" [ngValue]="member.id">{{ member.firstName }} {{ member.lastName }}</option></select></label><label class="field"><span>Schütze / Partner 2</span><select [(ngModel)]="pairSecondId"><option [ngValue]="null">Partner auswählen</option><option *ngFor="let member of members" [ngValue]="member.id">{{ member.firstName }} {{ member.lastName }}</option></select></label></div>
-            <div class="toggle-row"><span><strong>Ergebnis live verbergen</strong><small>{{ selectedEvent === 'koenig' ? 'Für Königsschießen bleibt die Teilerwertung bis zum Abschluss verdeckt.' : 'Ergebnisse bleiben bis zur Freigabe für Schützen verborgen.' }}</small></span><label class="switch"><input type="checkbox" [(ngModel)]="eventHidden"><span></span></label></div>
-            <div class="panel-footer"><span class="muted">Ergebnisse und Paarwertung benötigen noch die Wettbewerbs-API.</span><button class="button button-primary" (click)="saveEvent()">Wettbewerb anlegen</button></div>
-          </article><aside class="event-spec"><p class="eyebrow">WERTUNGS-PROFIL</p><h3>{{ eventName }}</h3><div class="profile-line"><span>Wertung</span><strong>{{ eventScoring }}</strong></div><div class="profile-line"><span>Schusslimit</span><strong>{{ eventShotLimit }} Schüsse</strong></div><div class="profile-line"><span>Ergebnisanzeige</span><strong>{{ eventHidden ? 'Verdeckt' : 'Sichtbar' }}</strong></div><div class="profile-note"><strong>Aktuell vorbereitet</strong><p>Die Parameter bilden die Anforderungen ab. Speicherung, Schusserfassung und Ranglisten sind im Backend noch nicht verfügbar.</p></div></aside></div>
+        <section *ngSwitchCase="'shooting-days'">
+          <div class="welcome-row"><div><p class="eyebrow">TAGESBETRIEB</p><h1>Schießtage</h1><p class="lead">Schießtage eröffnen und Fleischstatus je Klasse nachvollziehbar festlegen.</p></div></div>
+          <article class="feature-state">
+            <span class="feature-icon icon-orange">◉</span><p class="eyebrow">BACKEND-FUNKTION AUSSTEHEND</p><h2>Schießtage können noch nicht gespeichert werden.</h2>
+            <p>Ein Schießtag braucht eine aktive Saison, eine eindeutige laufende Nummer und ein Datum. Der Gesamtstatus für das Fleischschießen und die Auswahl pro Klasse müssen getrennt gespeichert werden.</p>
+            <div class="feature-checklist"><span>○ Doppelte Schießtage je Datum verhindern</span><span>○ Fleischstatus und Klassenwahl getrennt führen</span><span>○ LG-/LP-Erfassung nach Klassenvorgaben</span><span>○ Korrekturen und Neuberechnungen nachvollziehbar machen</span></div>
+          </article>
+        </section>
+
+        <section *ngSwitchCase="'results'">
+          <div class="welcome-row"><div><p class="eyebrow">TAGES- & SAISONWERTUNGEN</p><h1>Ergebnisse & Wertungen</h1><p class="lead">Aktuelle Listen des technischen Proof of Concept.</p></div><button class="button button-secondary" (click)="loadResults()">↻ Aktualisieren</button></div>
+          <div class="content-note warning-note"><span class="note-mark">!</span><span><strong>Nicht als Vereinswertung freigegeben.</strong> Die angezeigten Fleischpreis-/Pokal-Endpunkte nutzen noch vereinfachte PoC-Regeln und sind nicht mit den bestätigten Altregeln abgeglichen. Keine offizielle Platzierung oder Preisvergabe daraus ableiten.</span></div>
+          <div class="results-grid">
+            <article class="panel data-panel"><div class="panel-heading"><div><p class="eyebrow">POC-ENDPUNKT</p><h2>Fleischpreis-Datensätze</h2></div><span class="count-pill">{{ meatResults.length }}</span></div><div class="table-wrap"><table><thead><tr><th>Mitglied</th><th>Klasse</th><th>Schuss</th><th class="align-right">Teiler</th></tr></thead><tbody><tr *ngFor="let result of meatResults"><td class="person-name">{{ result.member_name }}</td><td>{{ result.class }}</td><td>{{ result.shot_number }}</td><td class="align-right">{{ result.teiler | number:'1.1-1' }}</td></tr><tr *ngIf="!meatResults.length"><td colspan="4" class="empty-state">Keine Datensätze vorhanden.</td></tr></tbody></table></div></article>
+            <article class="panel data-panel"><div class="panel-heading"><div><p class="eyebrow">POC-ENDPUNKT</p><h2>Pokal-Datensätze</h2></div><span class="count-pill">{{ cupResults.length }}</span></div><div class="table-wrap"><table><thead><tr><th>Mitglied</th><th>Klasse</th><th>Schüsse</th><th class="align-right">Ringe</th></tr></thead><tbody><tr *ngFor="let result of cupResults"><td class="person-name">{{ result.name }}</td><td>{{ result.class }}</td><td>{{ result.shot_count }}</td><td class="align-right">{{ result.total_rings }} <small>({{ result.total_tenths | number:'1.1-1' }})</small></td></tr><tr *ngIf="!cupResults.length"><td colspan="4" class="empty-state">Keine Datensätze vorhanden.</td></tr></tbody></table></div></article>
+          </div>
+          <article class="feature-state compact-state"><span class="feature-icon icon-violet">↗</span><p class="eyebrow">NÄCHSTER AUSBAUSCHRITT</p><h2>Regelbasierte Vereinswertungen</h2><p>Tages- und Saisonranglisten benötigen die kanonischen LG-/LP-Ergebnisse, bestätigte Formeln, versionierte Regelwerke, Korrekturhistorie und reproduzierbare Berichte. Diese Funktionen sind im Backend aktuell noch nicht vorhanden.</p></article>
+        </section>
+
+        <section *ngSwitchCase="'reports'">
+          <div class="welcome-row"><div><p class="eyebrow">AUSGABE & ARCHIV</p><h1>Berichte</h1><p class="lead">Reproduzierbare Vereinsberichte und konfigurierter PDF-Export.</p></div></div>
+          <article class="feature-state"><span class="feature-icon icon-violet">▤</span><p class="eyebrow">BACKEND-FUNKTION AUSSTEHEND</p><h2>Berichte können noch nicht erzeugt werden.</h2><p>Vorgesehen sind Schützenliste, Tagesergebnisse, Fleischpreise, Klasseneinteilung, Saison-Schützenberichte, Königsschießen, Schmankerlpokal, Wanderpokale und Saisonabschluss.</p><div class="feature-checklist"><span>○ PDF-Ausgabe mit konfigurierbarem Zielpfad</span><span>○ Saison, Schießtag und Disziplin im Dateinamen</span><span>○ Regelversion und Neuberechnung nachvollziehbar speichern</span><span>○ Export und Überschreiben kontrolliert behandeln</span></div></article>
+        </section>
+
+        <section *ngSwitchCase="'import'">
+          <div class="welcome-row"><div><p class="eyebrow">EXTERNE ERGEBNISSE · TAGESABSCHLUSS</p><h1>WMK-Import</h1><p class="lead">Datei prüfen, unbekannte Schützennummern klären und Import ausdrücklich bestätigen.</p></div></div>
+          <div class="content-note"><span class="note-mark">i</span><span><strong>Quellen getrennt halten.</strong> Dieser Import nimmt nur eine reale WM-Shot-.wmk-Datei entgegen. Der SQLite-Altbestand ist eine separate Datenmigrationsquelle. XML wird erst aktiviert, wenn eine reale Exportdatei geprüft wurde; Live-Poller sind nicht Teil der bestätigten Baseline.</span></div>
+          <article class="panel import-panel">
+            <div class="panel-heading"><div><p class="eyebrow">1 · DATEI & SCHIESSTAG</p><h2>Import vorbereiten</h2></div><span class="file-type">WM-SHOT · .WMK</span></div>
+            <div class="form-grid import-form">
+              <label class="field"><span>Schießdatum</span><input type="date" name="competitionDate" [(ngModel)]="competitionDate" required></label>
+              <label class="field"><span>WMK-Datei</span><input type="file" accept=".wmk" (change)="onFileSelected($event)" aria-label="WMK-Datei auswählen"><small>{{ selectedFile ? selectedFile.name : 'Eine WM-Shot-Datei auswählen (max. 50 MB)' }}</small></label>
+            </div>
+            <div class="panel-footer"><span class="muted">Die Vorschau prüft Dateiformat, Schüsse und bekannte DISAG-Startnummern.</span><button class="button button-primary" (click)="previewImport()" [disabled]="busy || !selectedFile">{{ busy ? 'Prüft …' : 'Datei prüfen' }}</button></div>
+          </article>
+          <article *ngIf="showImportPreview && importPreview" class="panel preview-panel">
+            <div class="panel-heading"><div><p class="eyebrow">2 · VORSCHAU</p><h2>{{ importPreview.shot_count }} Wertungsschüsse · {{ importPreview.shooter_count }} Schützinnen und Schützen</h2></div><span class="status-pill" [class.status-inactive]="importPreview.unknown_start_numbers.length > 0"><span></span>{{ importPreview.unknown_start_numbers.length ? 'Zuordnung offen' : 'Prüfung erfolgreich' }}</span></div>
+            <div *ngIf="importPreview.unknown_start_numbers.length" class="unknown-numbers"><strong>Unbekannte DISAG-Startnummern</strong><span>Die Zuordnung muss vor dem Import in den Mitgliedsstammdaten ergänzt werden:</span><b>{{ importPreview.unknown_start_numbers.join(', ') }}</b></div>
+            <div *ngIf="!importPreview.unknown_start_numbers.length" class="ready-note">Alle Schützennummern sind im Mitgliederbestand bekannt. Import kann ausdrücklich bestätigt werden.</div>
+            <div class="panel-footer"><span class="muted">Der Import weist abgelehnte Schüsse explizit aus.</span><button class="button button-primary" (click)="importResults()" [disabled]="busy || importPreview.unknown_start_numbers.length > 0">{{ busy ? 'Import läuft …' : 'Import bestätigen' }}</button></div>
+          </article>
+          <article *ngIf="importResponse" class="panel preview-panel"><div class="panel-heading"><div><p class="eyebrow">IMPORTBERICHT</p><h2>{{ importResponse.imported_shots }} Schüsse übernommen</h2></div><span class="count-pill">{{ importResponse.rejected_shots.length }} abgewiesen</span></div><div *ngIf="importResponse.rejected_shots.length" class="table-wrap"><table><thead><tr><th>DISAG-Nummer</th><th>Schuss</th><th>Grund</th></tr></thead><tbody><tr *ngFor="let rejected of importResponse.rejected_shots"><td>{{ rejected.disag_start_number }}</td><td>{{ rejected.shot_number }}</td><td>{{ rejected.reason }}</td></tr></tbody></table></div></article>
+          <p class="import-caveat">Der PoC-Importer übernimmt Rohschusswerte ohne Zuordnung zu Fleischpreis oder Pokal; Teiler, Schussserien und Disziplin müssen erst fachlich bestätigt werden. Import-Audit und Duplikatschutz sind noch nicht vorhanden; dieselbe Datei bis dahin nicht erneut importieren.</p>
         </section>
       </ng-container>
-      <footer class="page-footer"><span>TruderRinge <span class="footer-separator">·</span> Schießleiter-Konsole</span><span>Frontend-Prototyp · Backend-Anbindung in Arbeit</span></footer>
-    </section>
+      <footer class="page-footer"><span>TruderRinge · Vereinsverwaltung</span><span>Fachlicher Umfang: dokumentierte Bestandsabläufe</span></footer>
+    </div>
   </main>
 </div>

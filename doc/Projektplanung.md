@@ -1,148 +1,135 @@
 # Projektplanung TruderRinge
 
-**Stand:** 08.10.2026  
-**Grundlage:** `Anforderungen Übersicht.md` v2.2, `Anforderungen-Verein.md`, `Grundarchitektur.md` v2.0 und aktueller PoC-Stand.
+**Stand:** 09.10.2026
+**Grundlage:** [Anforderungen Übersicht.md](./Anforderungen%20Übersicht.md), [ANFORDERUNGEN_NEUENTWICKLUNG.md](./ANFORDERUNGEN_NEUENTWICKLUNG.md), [Schuetzen_sqlite_migration.sql](./Schuetzen_sqlite_migration.sql) und aktueller PoC-Stand.
 
 ## Ziel und Leitlinien
 
-TruderRinge soll die bisherige Auswertung für die SG Gemütlichkeit Trudering ablösen. Der für den Verein beschriebene Kernablauf ist der Offline-Tagesabschluss: WM-Shot-Daten einlesen, Ergebnisse pro Schütze und Serie zuverlässig bilden, nach Vereinsregeln zuordnen und für Schießleitung und Saisonwertung bereitstellen.
+TruderRinge soll die bisherige LibreOffice-Base-Anwendung für die SG Gemütlichkeit Trudering ablösen. Der belastbare fachliche Kern ist der Saison- und Schießtagbetrieb mit Mitgliedern, LG-/LP-Klasseneinteilung, Ergebniserfassung, Tages- und Saisonwertungen sowie Berichten.
 
-Die Spezifikationen unterscheiden einen zwingenden fachlichen Bedarf von möglichen technischen Erweiterungen. Daher gilt folgende Priorität:
+Die Projektplanung trennt drei Aufgaben, die nicht miteinander verwechselt werden dürfen:
 
-1. **WM-Shot `.wmk` nach dem Schießabend** als primärer Importweg.
-2. **DISAG OpticScore XML** als alternativer Offline-Import, sobald das Dateiformat für den konkreten WM-Shot-Ablauf anhand eines realen Exports bestätigt ist.
-3. **JSON-Live / Poller** ist optional und nachrangig. Die Vereinsspezifikation benötigt keine Echtzeitübertragung.
+1. **Altbestandsmigration:** Das bereitgestellte SQLite-SQL-Exportskript stammt aus der bisherigen HSQLDB-Anwendung und belegt deren Tabellen und vorhandene Resultate.
+2. **Schießtag-Import:** WM-Shot-`.wmk` oder OpticScore-XML sind externe Quellen für künftige Wettkampfergebnisse. Ihr konkretes Schema und ihre Feldbelegung sind noch mit realen Dateien zu verifizieren.
+3. **Optionale Erweiterungen:** Live-Daten, Standbelegung, wöchentliche Moduswechsel, Best-of-N, Android und weitere Traditionswettbewerbe sind keine bestätigte MVP-Basis.
 
-Der Browser-Prototyp enthält derzeit Bedienoberflächen für die Fachbereiche. Außer den bestehenden PoC-Endpunkten für WMK-Import und Ergebnislisten sind die dort angezeigten Daten und Aktionen noch nicht vollständig persistent oder serverseitig implementiert. Die Planung behandelt sie daher als UI-Prototyp, nicht als abgeschlossene Features.
+Der vorhandene PoC umfasst laut Projekt-README ein FastAPI-Backend und Angular-Frontend. Bedienoberflächen oder PoC-Endpunkte gelten erst dann als fertig, wenn Daten dauerhaft gespeichert, validiert und über die API nachvollziehbar bearbeitet werden.
 
 ## Zielbild und Abnahmekriterien
 
-Ein Schießabend kann mit Mitgliedern, Klassen, Disziplinen und Standbelegung vorbereitet werden. Nach Abschluss kann eine reale WMK-Datei importiert werden; Schützen, Datum, Serien 1–4, Einzel-/Gesamtringe, Zehntel, Teiler und Probe-/Wertungsschüsse werden validiert, reproduzierbar gespeichert und gemäß Regelwerk zugeordnet. Wiederholte Importe erzeugen keine Duplikate. Die Schießleitung kann Klassenkontingente steuern, Ergebnisse nachvollziehen und Tages- sowie Saisonlisten exportieren. Sonderwettbewerbe sind regelbasiert konfigurierbar und auswertbar.
+Ein Vereinsverantwortlicher kann eine Saison eröffnen, Mitglieder und LG-/LP-Klasseneinteilung pflegen, Schießtage anlegen, Ergebnisse erfassen oder aus einer bestätigten Importquelle übernehmen und Tages- sowie Saisonwertungen erzeugen. Ergebnisse und Auswertungen lassen sich korrigieren und reproduzieren. Berichte können sicher exportiert werden.
 
-Vor Produktivbetrieb müssen mindestens zwei Testschützen mit 40 Schüssen gegen WM-Shot-Auswertung verifiziert werden. Abweichungen müssen bis zum Einzelschuss erklärbar sein. Backup/Wiederherstellung, Benutzerberechtigungen und Datenschutz für Mitgliederstammdaten sind geklärt.
+Die fachlichen Abnahmekriterien umfassen:
+
+- Kontrollierte Migration der Altbestandsdaten mit Abgleich gegen ausgewählte Altberichte.
+- LG-/LP-Tages- und Saisonabläufe einschließlich Serien, Teiler, Fleischpreisen, Geldpreisen und belegten Sonderwertungen.
+- Verifizierter Import einer realen WM-Shot-Datei, falls dieser Import als MVP-Zugang beschlossen wird; SQL-Exportdaten gelten nicht als Ersatz für WMK-Testdaten.
+- Verständliche Fehlerbehandlung, Auditspur, Datenschutz, Backup und erfolgreich getestete Wiederherstellung.
+- Vor Produktivbetrieb bestätigt die Schießleitung offene Vereinsregeln und Referenzergebnisse.
 
 ## Umsetzungsreihenfolge
 
-### Phase 0 – Anforderungen und Import verifizieren
+### Phase 0 – Fachregeln, Datenquellen und Betrieb verifizieren
 
-**Epic E0: Fachliche und technische Verifikation**
+**Epic E0: Abnahmegrundlagen**
 
-- **Story E0.1 – Reale WMK-Testdatei analysieren:** Testwettkampf mit 2–3 Schützen und je 40 Schüssen durchführen; Schema, IDs, Datum, Serien-/Schussnummer, Ringe, Zehntel, Teiler sowie Probe-/Wertungsschuss dokumentieren. Abnahme: reproduzierbares Mapping und dokumentierte Grenzen für die tatsächlich eingesetzte WM-Shot-Version.
-- **Story E0.2 – XML-Exportentscheidung treffen:** passenden OpticScore-Export erzeugen und mit WMK-Feldern vergleichen. Abnahme: XML wird als unterstützter Import priorisiert oder nachvollziehbar zurückgestellt.
-- **Story E0.3 – Wertungsregeln verbindlich klären:** Klassen, Wochenwechsel, Kontingentverbrauch, Definition „Preis verschossen“, 40-Schuss-Serien, Sonderwertungen und Best-of-N fachlich bestätigen. Abnahme: versionierter Regelkatalog mit Beispielen und erwarteten Ergebnissen.
+- **E0.1 – Fachregeln bestätigen:** LG-/LP-Klassen, Jugendgrenze, Serienzahlen, Preisregeln, Fleischvergabe, Saisonabschluss und Korrekturablauf mit konkreten Referenzfällen festhalten.
+- **E0.2 – SQLite-Altbestand profilieren:** Tabellen, Schlüssel, Datenqualität und Verknüpfbarkeit des gelieferten Exports prüfen. Beispielmigration gegen Altberichte und erwartete Datensätze abgleichen.
+- **E0.3 – WM-Shot-Import testen:** Testwettkampf mit realen Dateien der eingesetzten Version durchführen. Schützen-ID, Datum, Wertungsschüsse, Serien, Ring-/Zehntelwerte und Teiler nachweisen; Probe-/Wertungsschuss-Markierung gesondert prüfen.
+- **E0.4 – XML-Eignung entscheiden:** OpticScore-XML nur dann als Adapter einplanen, wenn es für den tatsächlichen WM-Shot-Ablauf exportierbar ist und benötigte Felder enthält.
+- **E0.5 – Betrieb und Datenschutz festlegen:** Einsatzort, Nutzerrollen, DB-Betriebsmodell, Berichtsablage, Aufbewahrung sowie Backup-/Restore-Ziel entscheiden.
 
-**Abhängigkeit:** E0.1 ist Voraussetzung für belastbare Import- und Datenmodellentscheidungen. Der Live-Import wird nicht begonnen, bevor ein realer Bedarf bestätigt ist.
+**Gate:** Ungeklärte Wertungsregeln blockieren die fachliche Berechnung; nicht verfügbare WMK-Felder blockieren nur den WMK-Import, nicht die Altbestandsmigration oder manuelle Erfassung.
 
-### Phase 1 – Datenbasis und Backend-Grundlagen
+### Phase 1 – Zielmodell und Migration
 
-**Epic E1: Wettbewerbe, Datenmodell und API-Grundlage**
+**Epic E1: Datenbasis**
 
-- **Story E1.1 – Datenmodell auf Zielbild erweitern:** Wettbewerbe/Saisons, Mitgliederstatus und externe IDs, Klassenstatus/Kontingent, Roh-/verarbeitete Schüsse, Probe-Markierung und Zweierteams modellieren. Abnahme: Migrationen, Constraints und Beziehungen sind getestet.
-- **Story E1.2 – Migrationen und Testdaten etablieren:** Schemaänderungen reproduzierbar ausrollen; Fixture-Daten verwenden. Abnahme: leere Datenbank kann vollständig erstellt und mit Tests befüllt werden.
-- **Story E1.3 – API-Verträge definieren:** Ressourcen, Validierungen, Fehlerantworten, Paging/Filter und OpenAPI für Mitglieder, Wettbewerbe, Regeln, Standbelegung und Ergebnisse festlegen. Abnahme: Angular-Usecases sind ohne lokale Scheinpersistenz an die API anschließbar.
-- **Story E1.4 – Konfiguration und Betrieb absichern:** DB-URL, Importpfade und CORS aus Konfiguration laden; strukturierte Logs, Healthcheck und sichere Standardkonfiguration ergänzen.
+- **E1.1 – Domänenmodell entwerfen:** Mitglieder, Disziplinen, Klassen, Saison, Saisonklasseneinteilung, Schießtag, Ergebnisse, Serien/Einzelschüsse, Wettbewerbe, Preise und Berichte abbilden.
+- **E1.2 – LG/LP-Strukturen vereinheitlichen:** Wiederholte LG-/LP-Tabellen können intern über eine Disziplin-Dimension vereinheitlicht werden; Exporte und historische Ansichten behalten die Trennung bei.
+- **E1.3 – Constraints und Migrationen erstellen:** Eindeutigkeit und Beziehungen verbindlich absichern. Die Altmigration mit Fremdschlüsselprüfungen, Fehlerbericht und deterministischem Wiederholungslauf versehen.
+- **E1.4 – Herkunft und Historie speichern:** Quell-ID/Datei, Importlauf, Zeitstempel, Regelversion, manuelle Korrekturen und Neuberechnungen nachvollziehbar halten.
 
-### Phase 2 – Import und fachliche Wertung
+### Phase 2 – Mitglieder, Saisons und Schießtagbetrieb
 
-**Epic E2: Verlässlicher WM-Shot-Tagesabschlussimport**
+**Epic E2: Fachliche Grundabläufe**
 
-- **Story E2.1 – WMK-Reader gegen reale Dateien stabilisieren:** Dateiversion/Tabellen erkennen und erforderliche Felder extrahieren. Abnahme: Testdateien und ungültige/unterstützte Versionen sind automatisiert getestet.
-- **Story E2.2 – Importvorschau und Validierung bereitstellen:** Datei und Schießdatum prüfen; unbekannte Schützen, fehlende Felder, Probe- und Wertungsschüsse vor Commit nachvollziehbar anzeigen. Abnahme: Fehlerhafte Datensätze werden nicht stillschweigend verschluckt.
-- **Story E2.3 – Idempotenten Import implementieren:** Importlauf und Quelle protokollieren; Wiederholung derselben Datei verändert Ergebnisse nicht doppelt. Abnahme: Import kann sicher wiederholt und bei Fehlern diagnostiziert werden.
-- **Story E2.4 – Serien- und Gesamtergebnisse berechnen:** vier 10er-Serien und Gesamtwerte mit ganzen Ringen, Zehnteln und bestem Teiler je Serie berechnen. Abnahme: Werte stimmen mit WM-Shot-Referenzauswertung überein.
-- **Story E2.5 – XML-Offlineimport ergänzen (bedingt):** Adapter erst nach E0.2 erstellen; gemeinsames kanonisches Schussformat mit WMK nutzen. Abnahme: dieselben fachlichen Validierungen und Importberichte wie WMK.
+- **E2.1 – Mitgliederverwaltung:** Stammdaten, Aktivstatus, Disziplinteilnahme, Fleischberechtigung und Hilfsmittel pflegen; temporäre Mitgliedsnummern sicher behandeln.
+- **E2.2 – Saison und Klassen:** Saison eröffnen/abschließen, Klassen konfigurieren und LG-/LP-Einteilungen einschließlich saisonbezogener Schützennummern erzeugen.
+- **E2.3 – Schießtag:** Datum, fortlaufende Nummer und Gesamt-/Klassen-Fleischstatus erfassen; Duplikate verhindern.
+- **E2.4 – Manuelle Ergebniserfassung:** LG-/LP-Ergebnisse gemäß Klassen-Serienzahl eingeben, prüfen und mit kontrolliertem Korrekturpfad speichern.
 
-**Nicht Teil des MVP:** JSON-Live/UDP/WebSocket-Poller; die Vereinsspezifikation fordert keine Live-Daten.
+### Phase 3 – Tagesauswertung und Fachregeln
 
-**Epic E3: Regel-Engine, Klassenstatus und Kontingente**
+**Epic E3: Tageswertungen**
 
-- **Story E3.1 – Regelmodell und Wochenwechsel implementieren:** Regelset nach Saison, Schießdatum/Woche, Klasse und Disziplin auflösen. Abnahme: ungerade/gerade Woche sowie manuelle Overrides sind deterministisch.
-- **Story E3.2 – Schuss 1–20 zuordnen:** aktives Fleischpreiskontingent führt zur Teilerwertung, andernfalls Pokal zu Ringen/Zehnteln. Abnahme: Grenzfälle und Klassenunabhängigkeit sind getestet.
-- **Story E3.3 – Kontingentverbrauch und Moduswechsel abbilden:** Verbrauch manuell oder regelbasiert verwalten, Stop bestätigen und Auditspur führen. Abnahme: eine Klasse kann wechseln, ohne den Modus anderer Klassen zu ändern.
-- **Story E3.4 – Folge- und Sonderbereiche zuordnen:** Schuss 21–30 konfigurierbar für Pokal/Vortag/Preis; Schuss 31+ für Schießspiele/Glücksscheibe. Teilerfaktoren je Disziplin berücksichtigen.
+- **E3.1 – Serien und Gesamtergebnis berechnen:** Serien-/Schussdaten und Zusammenfassungen konsistent auswerten; Nullauffüllung und Teiler-Randfälle gemäß bestätigter Regel behandeln.
+- **E3.2 – Fleischpreise:** Klassenauswahl, Teilnahmeberechtigung, Rangfolge, Preise und Wiederholungsvermeidung abbilden.
+- **E3.3 – Geldpreise und Pokal:** LG-/LP-Rangfolgen, Tie-Breaker, Jugend-/Hilfsmittelbehandlung und bestätigte Betragsformeln implementieren.
+- **E3.4 – Rechenläufe versionieren:** Tagesauswertung reproduzierbar machen; Neuberechnung, Eingaben und Resultatänderungen protokollieren.
 
-### Phase 3 – Stammdaten und Schießabendbetrieb
+### Phase 4 – Saisonwertungen und Berichte
 
-**Epic E4: Mitglieder, Klassen und Standbelegung**
+**Epic E4: Saisonabschluss und Ausgabe**
 
-- **Story E4.1 – Mitgliederverwaltung bereitstellen:** Name, Geburtsdatum, Status, Standardklasse und Disziplin pflegen; suchen/filtern. Abnahme: Validierung und Deaktivierung statt destruktivem Löschen.
-- **Story E4.2 – Externe IDs zuordnen:** interne Vereins-ID mit DISAG-Startnummer/Chip und WM-Shot-ID verbinden; Dubletten verhindern und Konflikte anzeigen.
-- **Story E4.3 – Klassen und Disziplinen verwalten:** Klassen-/Disziplinstammdaten versioniert und referenziell konsistent halten.
-- **Story E4.4 – Schießabend anlegen und vorbereiten:** Datum, Saison und Regelset festlegen; Klassenstatus/Kontingent initialisieren.
-- **Story E4.5 – Standbelegung verwalten:** Schütze auf freien DISAG-Stand setzen, umsetzen und freigeben; aktuellen Klassenmodus vor Anmeldung anzeigen.
+- **E4.1 – Saisonwertungen umsetzen:** Vereinsmeisterschaft/Jahresschnitt, Vorjahresvergleich, Saison-Geldpreise und Pokalteiler je Disziplin.
+- **E4.2 – Bestandswettbewerbe ergänzen:** Königsschießen und Schmankerlpokal für LG/LP sowie Diepold- und Röhrner-Wanderpokal für LG nach bestätigten Regeln.
+- **E4.3 – Saisonabschluss:** Teilnahme-/Auswertungsstatus prüfen, Vorjahresschnitte fortschreiben und Saisonende setzen.
+- **E4.4 – PDF-Berichte:** Tages-, Fleischpreis-, Klassen-, Schützen- und Saisonabschlussberichte mit konfiguriertem Pfad und nachvollziehbaren Dateinamen ausgeben.
 
-### Phase 4 – Auswertung und Traditionsschießen
+### Phase 5 – Externe Importe
 
-**Epic E5: Tages- und Saisonauswertung**
+**Epic E5: Eingangsadapter**
 
-- **Story E5.1 – Fleischpreis-Tagesliste erstellen:** beste Teiler sortiert und nachvollziehbar je Klasse/Schießabend anzeigen.
-- **Story E5.2 – Pokal- und Serienauswertung erstellen:** Serien 1–4 und Gesamtwerte je Schütze und Abend darstellen.
-- **Story E5.3 – Saisonkonto und Best-of-N berechnen:** Schießabende je Klasse aggregieren, N beste Ergebnisse zählen und Streichergebnisse transparent markieren.
-- **Story E5.4 – Listen exportieren und drucken:** CSV mindestens für Weiterverarbeitung; druckbarer Aushang/PDF für Tages- und Saisonlisten.
+- **E5.1 – WMK-Reader:** Nur nach E0.3; konkrete Versionserkennung, sichere Leseverarbeitung und Mapping auf das kanonische Schussmodell.
+- **E5.2 – Importvorschau und Konflikte:** Unbekannte Schützen, unvollständige Felder, Duplikate und Probe-/Wertungsschüsse vor Übernahme anzeigen.
+- **E5.3 – Idempotenter Import:** Wiederholung einer Quelle erzeugt keine Duplikate und lässt sich anhand des Importlaufs diagnostizieren.
+- **E5.4 – XML-Adapter:** Nur bei bestätigter Eignung aus E0.4; dieselbe kanonische Validierung und Importhistorie wie WMK.
+- **E5.5 – Referenzabnahme:** Importergebnis bis zum Einzelschuss mit WM-Shot/OpticScore vergleichen und Abweichungen dokumentieren.
 
-**Epic E6: Sonder- und Traditionsschießen**
+Der SQLite-Export aus der Altanwendung wird über die Migrationsstrecke aus E1.3 übernommen und ist ausdrücklich kein WMK-Importer-Test.
 
-- **Story E6.1 – Wettbewerbe konfigurieren:** Typ, Datum, Schusslimit, Scheibe und Wertungsschlüssel für König, Gaudi, Er-und-Sie, Ostern, Martini und Nikolaus verwalten.
-- **Story E6.2 – Königsschießen verdeckt auswerten:** beste Teiler geheim halten bis zur Freigabe; Rollen-/Anzeigekonzept beachten.
-- **Story E6.3 – Gaudi- und Vorgabewertung umsetzen:** Vorgabeteiler, Differenzen und Glücksscheiben-Regeln abbilden.
-- **Story E6.4 – Er-und-Sie-Paare bilden und werten:** manuelle/Zufallspaarung und kombinierte Ringe-/Teilerwertung mit Teamrangliste.
-- **Story E6.5 – Osterschießen limitieren:** Spezialschüsse pro Teilnehmer strikt begrenzen und Motiv-/Scheibenzuordnung speichern.
-- **Story E6.6 – Martinischießen werten:** bester Teiler und beste Deckserie gemäß bestätigter Regel kombinieren.
-- **Story E6.7 – Nikolausschießen abschließen:** Preisschlüssel konfigurieren und Platzierungen direkt ausgeben.
+### Phase 6 – Bedienoberfläche, Einführung und Betrieb
 
-### Phase 5 – Bedienoberfläche, Qualität und Einführung
+**Epic E6: Produktivbetrieb**
 
-**Epic E7: Angular-Frontend produktionsreif anbinden**
-
-- **Story E7.1 – Prototyp an echte API anbinden:** lokale Entwurfszustände durch Laden/Speichern, Ladezustände, Fehler und Berechtigungen ersetzen.
-- **Story E7.2 – Importworkflow für Leitung fertigstellen:** Dateiupload, Vorschau, Validierung, Bestätigung und Importbericht integrieren.
-- **Story E7.3 – Navigation und Formulare barrierefrei/responsiv prüfen:** PC/Tablet und schmale Displays, Tastatur, Labels und verständliche Statusmeldungen testen.
-- **Story E7.4 – Dashboard und Aushang optimieren:** Tagesstatus, Klassenkontingente, Standbelegung und exportierbare Ergebnislisten.
-
-**Epic E8: Test, Betrieb und optionale Plattformen**
-
-- **Story E8.1 – Fachliche Testmatrix automatisieren:** Import, Regelgrenzen, Serien, Kontingente, Saisonwertung und Sonderwettbewerbe mit Referenzfällen testen.
-- **Story E8.2 – Abnahme mit Testwettkampf durchführen:** 2–3 Testschützen × 40 Schuss, Soll-/Istvergleich mit WM-Shot, dokumentierte Freigabe.
-- **Story E8.3 – Backup, Wiederherstellung und Datenschutz abnehmen:** Aufbewahrung, Zugriff, Rollen und Wiederherstellungsprobe dokumentieren.
-- **Story E8.4 – Linux-Deployment und Monitoring dokumentieren:** Installation, Updates, Migration, Logs und Fehlerbehebung reproduzierbar beschreiben.
-- **Story E8.5 – Capacitor/Android bewerten (optional):** erst nach stabiler Web/API-Basis entscheiden, ob eine native Schützen-App benötigt wird.
-- **Story E8.6 – Live-Fallback bewerten (optional):** nur bei nachgewiesenem Bedarf und nach Prüfung der offiziellen DISAG-Schnittstelle planen.
+- **E6.1 – Angular-Flows an die API anbinden:** Scheinpersistenz durch echte Lade-/Speicherabläufe, Validierungsfehler und Statusmeldungen ersetzen.
+- **E6.2 – Bedienbarkeit prüfen:** Schießleitung auf PC/Tablet, barrierearme Formulare und sichere Bestätigungen bei destruktiven oder wertungsrelevanten Aktionen.
+- **E6.3 – Rollen und Datenschutz:** Zugriff auf personenbezogene Daten sowie Protokollierung und Lösch-/Aufbewahrungsregeln umsetzen.
+- **E6.4 – Backup und Wiederherstellung:** automatisierbare Sicherung und Restore-Test dokumentieren und durchführen.
+- **E6.5 – Deployment und Monitoring:** Installation, Konfiguration, Updates, Logs und Fehlerbehebung für den Linux-Host festhalten.
 
 ## Abhängigkeiten und kritischer Pfad
 
-`E0.1 → E1 → E2.1–E2.4 → E3 → E4.4/E4.5 → E5 → E7 → E8.2/E8.3`.
+`E0.1/E0.2 → E1 → E2 → E3 → E4 → E6`
 
-XML hängt von E0.2 ab und ist keine Voraussetzung für den ersten nutzbaren Offlinebetrieb. Sonderwettbewerbe können parallel zu E5 entwickelt werden, sobald Datenmodell und Regelbasis aus E1/E3 stehen. Android und Live-Poller sind explizite spätere Optionen, keine MVP-Blocker.
+Der externe WMK-Pfad lautet `E0.3 → E5.1–E5.5`; er benötigt das kanonische Datenmodell, blockiert aber weder manuelle Erfassung noch die Migration des Altbestands. XML hängt zusätzlich von E0.4 ab.
 
 ## MVP-Vorschlag
 
-Der erste abnahmefähige Vereinsbetrieb umfasst E0, E1, WMK-Import E2.1–E2.4, Kernregeln E3.1–E3.3, Mitglieder/Zuordnung/Standbelegung E4.1–E4.5, Tages- und Pokalauswertung E5.1–E5.2 sowie die nötigen API-angebundenen Angular-Flows aus E7.1–E7.3. Saison-Best-of-N, Traditionswettbewerbe, PDF, XML und Android können danach priorisiert werden; die Reihenfolge innerhalb dieser Nachfolgepakete wird mit der Schießleitung bestätigt.
+Das MVP umfasst:
+
+1. Migration und Prüfung des vorhandenen SQLite-Exports.
+2. Mitglieder, LG-/LP-Klassen, Saison und Schießtag.
+3. Manuelle Ergebniserfassung mit Korrekturhistorie.
+4. Belegte Tages- und Saisonwertungen, soweit deren Regeln fachlich abgenommen sind.
+5. Die notwendigen Tages- und Saisonberichte.
+6. Datenschutz, Backup und Restore.
+
+Der WMK-Import gehört zum MVP, wenn E0.3 nachweist, dass die benötigten Quelldaten verfügbar sind und der Verein ihn für den Tagesbetrieb priorisiert. Sonst wird ein manueller Erfassungsweg als erster produktiver Pfad genutzt und der Importer separat weitergeführt. XML, Live-Poller, Android, Standbelegung und weitere nicht belegte Wettbewerbe sind nachgelagerte Entscheidungen.
 
 ## Risiken und offene Entscheidungen
 
 | Thema | Risiko / offene Frage | Maßnahme |
 | --- | --- | --- |
-| WMK-Schema | Internes, versionsabhängiges Format | Reale Dateien mehrerer Versionen analysieren; unterstützte Versionen festlegen |
-| XML für WM-Shot-Wettkämpfe | Verfügbarkeit im konkreten Ablauf unklar | Testexport und Hersteller-/Vereinsverifikation vor Implementierung |
-| Kontingentverbrauch | „Preis verschossen“ nicht technisch eindeutig definiert | Vereinsregel und manuelle Override-Semantik festlegen |
-| Wertungsmodell | Ringwert/Zehntel können Serien-/Schusswerte unterschiedlich repräsentieren | Kanonisches Datenmodell anhand Referenzauswertung spezifizieren |
-| Stammdaten | Personenbezogene Daten inkl. Geburtsdatum | Zugriffe, Minimaldaten, Backups und Aufbewahrung klären |
-| Live-Funktion | Höhere Betriebs- und Schnittstellenkomplexität, derzeit kein Vereinsbedarf | Aus dem MVP ausschließen, später nur bei Bedarf neu bewerten |
+| SQLite-Altbestand | Export schaltet Fremdschlüssel aus; Daten oder Beziehungen können unvollständig sein | Datenprofil, Constraints beim Zielimport und Fehlerliste |
+| WMK-Schema | Altbestands-SQL sagt nichts über `.wmk`-Format oder dessen Version | Reale Dateien analysieren; unterstützte Versionen festlegen |
+| Wertungsregeln | Preis-, Klassen- und Saisonregeln enthalten Randfälle | Beispiele vom Verein abnehmen und automatisiert testen |
+| Rohdaten | Altbestand und WMK-Export können unterschiedliche Detailgrade liefern | Kanonisches Modell und Herkunft/Fehlfelder dokumentieren |
+| Wiederholte Auswertung | Neuberechnung kann gespeicherte Preise/Berichte ersetzen | Versionierte Rechenläufe und nachvollziehbare Korrektur |
+| Datenschutz/Betrieb | Geburtsdaten, Mitgliedsnummern und Ergebnisse sind personenbezogen | Rollen, Aufbewahrung und Restore-Ziel festlegen |
+| Früherer Featureumfang | Live-/Wochenmodus-/Stand- und Sonderwettbewerbe sind nicht quellbelegt | Nicht als MVP implementieren, vor Aufnahme beschließen |
 
-## Issue-Aufteilung für GitHub
+## Abstimmung mit GitHub-Issues
 
-Die Epics und Stories wurden als Issues im Repository [oxiego/TruderRinge](https://github.com/oxiego/TruderRinge/issues) angelegt. GitHubs native Sub-issue-Beziehungen bilden die Hierarchie ab.
-
-| Epic | GitHub-Issue | Zugeordnete Story-Issues |
-| --- | --- | --- |
-| E0 – Fachliche und technische Verifikation | [#1](https://github.com/oxiego/TruderRinge/issues/1) | #2–#4 |
-| E1 – Datenmodell und Backend-Grundlagen | [#5](https://github.com/oxiego/TruderRinge/issues/5) | #13–#16 |
-| E2 – WM-Shot-Tagesabschlussimport | [#6](https://github.com/oxiego/TruderRinge/issues/6) | #17–#21 |
-| E3 – Rule Engine, Klassenstatus und Kontingente | [#7](https://github.com/oxiego/TruderRinge/issues/7) | #22–#25 |
-| E4 – Mitglieder, Klassen und Standbelegung | [#8](https://github.com/oxiego/TruderRinge/issues/8) | #26–#30 |
-| E5 – Tages- und Saisonauswertung | [#9](https://github.com/oxiego/TruderRinge/issues/9) | #31–#34 |
-| E6 – Sonder- und Traditionsschießen | [#10](https://github.com/oxiego/TruderRinge/issues/10) | #35–#41 |
-| E7 – Angular-Frontend produktionsreif anbinden | [#11](https://github.com/oxiego/TruderRinge/issues/11) | #42–#45 |
-| E8 – Test, Betrieb und optionale Plattformen | [#12](https://github.com/oxiego/TruderRinge/issues/12) | #46–#51 |
-
-Insgesamt wurden 9 Epics und 42 Stories (51 Issues) angelegt. Die Story-Issues enthalten eigene Ziele und Abnahmekriterien; die Epic-Issues fassen Ziel, Abnahme und Storyumfang zusammen.
+Die bestehenden Epics und Stories wurden am 09.10.2026 an diese quellenbasierte Reihenfolge angepasst. Wochenmodus, automatische Schussbereichszuordnung, Best-of-N, Standbelegung und zusätzliche Wettbewerbe sind nur noch optionale, beschlussabhängige Erweiterungen. Die Datenqualitätsanalyse des SQLite-Altbestands ist in [#52](https://github.com/oxiego/TruderRinge/issues/52) ergänzt; [#53](https://github.com/oxiego/TruderRinge/issues/53) klärt Betriebsmodell, Datenschutz und Wiederherstellung. Beide Issues sind als native Sub-issues mit [Epic E0 (#1)](https://github.com/oxiego/TruderRinge/issues/1) verknüpft. Die fachlich zur Saisonwertungs-Baseline gehörende Königsschießen-Story [#36](https://github.com/oxiego/TruderRinge/issues/36) wurde aus dem optionalen Epic E6 gelöst und unter [Epic E5 (#9)](https://github.com/oxiego/TruderRinge/issues/9) eingeordnet.

@@ -1,215 +1,154 @@
-# Software-Architekturdokument: TruderRinge (v2.0)
+# Grundarchitektur TruderRinge (v3.0)
 
-**Projekt:** TruderRinge – Nachfolger für Schuetzenliste
+**Projekt:** Nachfolgeanwendung für die Schützengesellschaft Gemütlichkeit Trudering e.V.
+**Stand:** Oktober 2026
+**Laufender PoC:** FastAPI-Backend und Angular-Frontend
 
-**Kontext:** Schützengesellschaft Gemütlichkeit Trudering e.V.
+## 1. Architekturziele und Quellenabgrenzung
 
-**Plattform:** Linux Host (Backend) / Web & Android (Frontend)
+Die Zielarchitektur bildet die belegten Abläufe der Altanwendung ab: Mitglieder- und Klassenverwaltung, Saison, Schießtag, LG-/LP-Ergebnisse, Tages-/Saisonwertungen und Berichte. Wertungsregeln sind zentral, testbar und versionierbar.
 
-**Datum:** Oktober 2026
+Es gibt zwei unterschiedliche Eingangswege:
 
----
+- **Altbestandsmigration:** [Schuetzen_sqlite_migration.sql](./Schuetzen_sqlite_migration.sql) ist ein SQLite-Export der alten HSQLDB-Anwendung. Er dient zur Datenübernahme und Validierung der historischen Tabellen.
+- **Wettkampfergebnisse:** WM-Shot-`.wmk` ist als Offline-Import vorgesehen, sein konkretes Dateischema muss jedoch gegen reale Dateien verifiziert werden. OpticScore-XML ist eine bedingte Alternative.
 
-## 1. Übersicht & Zielsetzung
+Der Altbestands-SQL-Export ist kein WMK-Beispiel. Er beweist daher weder Verfügbarkeit noch Bedeutung von Feldern wie Probe-/Wertungsschuss, Zeitstempel oder Zehntelwerten in einem WMK-Export. Der JSON-Live-Listener ist für den beschriebenen Tagesabschluss nicht erforderlich.
 
-Die Software **TruderRinge** dient der digitalen Auswertung, Konfiguration und Ergebnisaggregation für Schießstände der Marke **DISAG OpticScore** (optional betrieben mit **WM-Shot**). Sie löst die bisherige Office-basierte Lösung (*Schuetzenliste*) ab.
-
-### Hauptziele
-
-* **Flexible Schnittstellen & Entkopplung:** Die Erfassung unterstützt primär den lesenden **Offline-/Tagesabschluss-Import** aus WM-Shot-Datenbanken (`.wmk`) oder DISAG-OpticScore-XML-Dateien sowie optional die direkte Ingestion aus dem DISAG OpticScore Server.
-* **Dynamische Regel-Engine:** Wöchentlich wechselnde und klassenspezifische Auswertung (z. B. *Schuss 1–20 = Fleischpreis (Teiler)*, bis das Kontingent pro Schützenklasse aufgebraucht ist; danach automatischer Wechsel auf *Pokal (Ringe)*).
-* **Erweitertes Schießspiele-Modul:** Native Unterstützung für Traditionsschießen (Er-und-Sie, Osterschießen mit Limit-Scheiben, Martinischießen, Nikolausschießen).
-* **Multi-Plattform:** Primäre Bedienung als Web-Anwendung für Schießleiter (PC/Tablet im Schützenheim) sowie als Android-App für Schützen via Capacitor.
-* **Linux-Native:** Das Backend läuft vollständig auf Linux (FastAPI / Python).
-
----
-
-## 2. Systemarchitektur & Datenfluss
+## 2. Systemkontext und Datenfluss
 
 ```text
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                       ELEKTRONISCHE SCHIESSSTAND-INFRASTRUKTUR              │
-│      DISAG OpticScore Messrahmen ──► SIZ ──► OpticScore Server (Windows)     │
-└──────────────────────────────────────┬──────────────────────────────────────┘
-                                       │
-            ┌──────────────────────────┼──────────────────────────┐
-            ▼                          ▼                          ▼
- ┌──────────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
- │ OpticScore XML       │   │ WM-Shot DB (.wmk)    │   │ DISAG JSON-Live / DB │
- │ (Dokumentierter      │   │ (Tagesabschluss-     │   │ (Echtzeit / Direct   │
- │  Offline-Export)     │   │  Import nach Event)  │   │  DB Access Fallback) │
- └──────────┬───────────┘   └──────────┬───────────┘   └──────────┬───────────┘
-            │                          │                          │
-            └──────────────────────────┼──────────────────────────┘
-                                       │
-┌──────────────────────────────────────▼──────────────────────────────────────┐
-│                  TRUDERRINGE BACKEND (Linux Host)                           │
-│                                                                             │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │ 1. Ingestion Layer (Multi-Adapter / Parser)                           │  │
-│  │    - WM-Shot .wmk File Parser / Reader                                │  │
-│  │    - OpticScore XML Importer                                          │  │
-│  │    - Optional: Async Poller / JSON Live Listener                      │  │
-│  └───────────────────────────────────┬───────────────────────────────────┘  │
-│                                      │                                      │
-│                                      ▼                                      │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │ 2. Core Business & Rule Engine                                        │  │
-│  │    - Wöchentliche Klassen- & Kontingent-Steuerung                     │  │
-│  │    - Dynamic Sequence Splitter (Schuss 1-20 Fleischpreis ↔ Pokal)     │  │
-│  │    - Trad. Schießspiele (Er-und-Sie, Ostern, Martini, Nikolaus)       │  │
-│  │    - Aggregation für Saisontabellen (Best-of-N, Streichergebnisse)    │  │
-│  └───────────────────────────────────┬───────────────────────────────────┘  │
-│                                      │                                      │
-│                                      ▼                                      │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │ 3. Vereins-Datenbank (PostgreSQL / SQLite)                            │  │
-│  └───────────────────────────────────┬───────────────────────────────────┘  │
-│                                      │                                      │
-│                                      ▼                                      │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │ 4. REST API & WebSocket Server (FastAPI / Pydantic)                   │  │
-│  └───────────────────────────────────┬───────────────────────────────────┘  │
-└──────────────────────────────────────┼──────────────────────────────────────┘
-                                       │
-                 ┌─────────────────────┴─────────────────────┐
-                 │ HTTP REST / WebSockets (OpenAPI Schema)   │
-                 ▼                                           ▼
-┌─────────────────────────────────┐         ┌─────────────────────────────────┐
-│     ANGULAR WEB FRONTEND        │         │   ANGULAR + CAPACITOR (ANDROID) │
-│ (Schießleiter PC / PWA / Tablet)│         │ (Ergebnis-App für Schützen)     │
-└─────────────────────────────────┘         └─────────────────────────────────┘
-
+HSQLDB / LibreOffice-Base-Altbestand
+               │
+               ▼
+     SQLite-Export / Migrationsadapter
+               │
+               ├────────────────────────────────┐
+                                                ▼
+WM-Shot .wmk ──► WMK-Adapter (nach Verifikation) ──► Importvorschau / Validierung
+OpticScore XML ► XML-Adapter (optional, bestätigt) ─► Importvorschau / Validierung
+                                                │
+                                                ▼
+                               Kanonisches TruderRinge-Datenmodell
+                                                │
+                    ┌───────────────────────────┼──────────────────────────┐
+                    ▼                           ▼                          ▼
+            Fachliche Dienste             REST API                 Berichte / PDF
+       (Saison, Tageswertungen,     (FastAPI / Pydantic)        (Tages- und Saison-
+        Saisonwertungen, Preise)             │                    auswertungen)
+                                             ▼
+                                    Angular-Weboberfläche
 ```
 
----
+Jeder Eingangsadapter bleibt von der Fachlogik getrennt. Vor dem Speichern werden Identität, Saison/Schießtag, Disziplin, Klasse und Ergebnisdaten validiert. Konflikte oder fehlende Felder werden angezeigt und protokolliert; ein unbekannter Quellwert wird nicht stillschweigend in ein gültiges Ergebnis umgewandelt.
 
-## 3. Tech-Stack
+## 3. Anwendungsschichten
 
-| Schicht | Technologie | Beschreibung |
-| --- | --- | --- |
-| **Backend Framework** | **Python 3.11+ / FastAPI** | High-Performance API, native Datenauswertung, asynchrone Tasks für File-Parsing und Ingestion. |
-| **ORM & DB-Access** | **SQLAlchemy 2.0 & sqlite3 / pyodbc** | DB-Zugriff auf die Vereins-DB sowie Parser/Reader für externe MS SQL / SQLite `.wmk`-Dateien. |
-| **Vereins-Datenbank** | **PostgreSQL** (oder SQLite) | Speicherung von Mitgliederdaten, Wochen-Klassenkontingenten, Regelsätzen und aggregierten Ergebnissen. |
-| **Frontend Framework** | **Angular 17+** | Single-Page-Application mit TypeScript für Schießleiter-Dashboard, Standbelegung und Siegerlisten. |
-| **Mobile Deployment** | **Capacitor** (`@capacitor/core`) | Native Hülle um das Angular-Frontend für die Android-App der Schützen. |
+### 3.1 Eingangsadapter und Migration
 
----
+- Der **Altbestandsadapter** liest die Tabellen des SQLite-Exports, ordnet historische Schlüssel zu und berichtet verwaiste oder widersprüchliche Beziehungen. Temporäre `Temp_...`-Tabellen sind keine dauerhaften fachlichen Entitäten.
+- Der **WMK-Adapter** arbeitet zunächst lesend und unterstützt nur nachgewiesene Dateiversionen. Der Import wird als eigener Lauf mit Dateiquelle, Prüfergebnis und Importstatus gespeichert.
+- Der **XML-Adapter** wird nur implementiert, wenn ein realer Export für den WM-Shot-Ablauf zur Verfügung steht und mit dem kanonischen Modell abbildbar ist.
+- Ein Importlauf bietet Vorschau, Dublettenprüfung, Konfliktauflösung und Wiederholung ohne Duplikate.
 
-## 4. Kernkomponenten & Modulbeschreibung
+### 3.2 Fachlicher Kern
 
-### 4.1. Flexible Ingestion Layer
+Der Fachkern enthält voneinander testbare Dienste für:
 
-Das Ingestion-Modul verarbeitet Schuss- und Seriendaten flexibel über drei Prioritätsstufen:
+- Saisonstart, Einteilung, Schießtag und Saisonabschluss.
+- LG-/LP-Erfassung, Serien-/Gesamtergebnisse und Korrekturen.
+- Tagesranglisten, Geldpreise, Fleischpreise und Teilerwertungen.
+- Vereinsmeisterschaft/Jahresschnitt, Vorjahresvergleich und Saisonpreise.
+- Königsschießen, Schmankerlpokal, Pokalteiler sowie LG-Diepold- und LG-Röhrner-Wanderpokal.
+- Berichtsaufbereitung.
 
-* **Priorität 1 (WM-Shot-Datenbank `.wmk`):** Liest nach Abschluss des Schießtages die `.wmk`-Datei aus und extrahiert Schützen, Serien 1–4 (Ringe und Zehntel), Einzel-Teiler sowie Probe-/Wertungsschuss-Markierungen.
-* **Priorität 2 (OpticScore XML-Export):** Importiert strukturierte XML-Dateien mit vollständigen Einzelschussdaten (Ringe, Zehntel, Teiler, Schussnummer, Status).
-* **Priorität 3 (JSON-Live / Direct Poller):** Optionaler Fallback für Live-Echtzeitübertragungen während des Schießbetriebs.
+Klassen- und Preisregeln kommen aus versionierter Konfiguration, nicht aus Importadaptern. Obsolete oder ungeklärte Regeln (z. B. Gleichstände, Rundung und fehlende Disziplin am Saisonabschluss) werden nicht durch einen technischen Standardwert entschieden.
 
-### 4.2. Core Business Engine (Dynamische Regel- & Sequenzsteuerung)
+### 3.3 API und Bedienoberfläche
 
-* **Klassen- & Kontingent-Steuerung:** Schießabende werden nach Schützenklassen (z. B. *Pistole*, *Gewehr Herren*, *Damen*, *Jugend*) getrennt verwaltet.
-* **Dynamic Sequence Splitter (Schuss 1–20):**
-* **Status A (Fleischpreis aktiv):** Schuss 1–20 werden als Teiler-Wertung für die Fleischpreis-Tagesliste ausgewertet.
-* **Status B (Fleischpreise aufgebraucht ODER Pokal-Woche):** Schuss 1–20 werden direkt der Pokal- / Jahresmeisterschaft (Ringe / Zehntel) gutgeschrieben. Sobald z. B. die Pistolen-Schützen ihr Fleischpreis-Kontingent verschossen haben, schaltet das System für diese Klasse automatisch auf Pokal um, während Gewehr-Klassen weiter auf Fleischpreise schießen können.
+FastAPI/Pydantic stellt die validierten Domänenoperationen bereit. REST-Endpunkte sollen Saison, Mitglieder, Klassen, Schießtage, Ergebnisse, Importläufe, Auswertungen und Berichte abbilden. API-Fehler sind für die Angular-Anwendung strukturiert und verständlich.
 
+Angular ist die primäre Bedienoberfläche für Schießleitung und Vereinsverwaltung. Aktionen für Import, Korrektur, Neuberechnung und Saisonlöschung benötigen geeignete Bestätigung, Statusanzeige und Fehlerdarstellung. WebSockets oder eine Android-Hülle sind keine Voraussetzungen des fachlichen Kerns.
 
-* **Saison-Aggregator:** Berechnet Jahresmeister über $N$ beste Schießabende (inkl. Streichergebnissen).
+### 3.4 Persistenz
 
-### 4.3. Sonder- & Traditionsschießspiele-Modul
+Die Zielpersistenz hält Stammdaten, historische Saison-/Schießtagzuordnungen, Detail- und Summenergebnisse, Auswertungsresultate, Importherkunft und Auditdaten dauerhaft. Die konkrete Datenbankwahl (SQLite oder PostgreSQL) ist anhand Betriebsort, Mehrbenutzerzugriff, Backup und Wiederherstellung festzulegen; der SQLite-Export allein entscheidet diese Architekturfrage nicht.
 
-* **Er-und-Sie-Schießen:** Verwaltung von Zweier-Teams (Dame + Herr oder Zulosung) mit automatischer Aufsummierung der Einzelergebnisse zu einer Team-Rangliste.
-* **Osterschießen:** Beschränkung auf feste Maximal-Schusszahlen $X$ (z. B. strikt 3 oder 5 Spezial-Schüsse auf Osterei-/Motivscheiben).
-* **Martinischießen:** Kombinierte Auswertung aus bestem Teiler + bester Deckserie für die Martinsgans-Auswertung.
-* **Nikolausschießen & Königsschießen:** Direkt-Ausgabe von Siegerlisten bzw. verdeckte Auswertung bester Tiefschüsse (Teiler).
+Die gelieferten Tabellen sind ein Migrationsformat, kein direktes Zielschema: Im Export ist `PRAGMA foreign_keys = OFF` gesetzt, LG-/LP-Tabellen wiederholen viele Strukturen und einzelne temporäre bzw. historische Tabellen dienen technischen oder berichtsbezogenen Zwecken. Zielconstraints werden daher explizit definiert und beim Import geprüft.
 
----
+## 4. Kanonisches fachliches Datenmodell
 
-## 5. Relationales Datenmodell (Vereins-DB Schema)
+Die Zielstruktur soll mindestens folgende Entitäten unterscheiden:
 
-```sql
--- Mitgliederstamm
-CREATE TABLE members (
-    id SERIAL PRIMARY KEY,
-    first_name VARCHAR(100) NOT NULL,
-    last_name VARCHAR(100) NOT NULL,
-    disag_start_number INT UNIQUE,
-    category_class VARCHAR(50) NOT NULL, -- z.B. 'PISTOLE', 'GEWEHR_HERREN', 'DAMEN'
-    active BOOLEAN DEFAULT TRUE
-);
+| Entität | Zweck und wesentliche Beziehungen |
+| --- | --- |
+| **Mitglied** | Eindeutige Vereins-/Passnummer, Name, Geburtsdatum, Geschlecht, Aktivstatus, Vorjahresschnitte und Teilnahme-/Berechtigungsmerkmale |
+| **Disziplin** | LG oder LP; erhält fachlich getrennte Klassen, Ergebnisse und Auswertungen |
+| **Klasse** | Bezeichnung, Serienzahl, Disziplin, Jahrgangs-/Jugend- und Damenmerkmale, Hilfsmittel, Fleischberechtigung, Einlage und Aktivstatus |
+| **Saison** | Jahresbezeichnung, Beginn/Ende, aktiver Status und getrennte LG-/LP-Auswertungsstatus |
+| **Saison-Einteilung** | Mitglied, Saison, Disziplin, saisonbezogene Schützennummer und Klasse |
+| **Schießtag** | Saison, fortlaufende Nummer, Datum, Fleischstatus; Klassenwahl je Tag separat |
+| **Tagesergebnis** | Mitglied, Saison, Schießtag, Disziplin, Zusammenfassungen für Serien/Gesamt und Pokal-/Zusatzteiler |
+| **Serie und Einzelschuss** | Geordnete Schüsse einer Serie mit Ring-/Zehntel-/Teilerwerten und – sofern die Quelle sie liefert – Koordinaten und Schussstatus |
+| **Wertungslauf und Preisresultat** | Eingaben, Regelversion, Rangfolge, Betrag/Preis, Berechnungszeit und Herkunft |
+| **Sonderwettbewerb** | Saisonbezogene Teilnahme/Teiler und Rangfolge der im Bestand belegten Wettbewerbe |
+| **Importlauf und Auditereignis** | Quelle, Schlüssel/Datei, Mapping, Status, Fehler, Änderungen und verantwortliche Aktion |
 
--- Wettbewerbe / Schießabende
-CREATE TABLE competitions (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    season VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    competition_type VARCHAR(50) DEFAULT 'STANDARD', -- 'STANDARD', 'ER_UND_SIE', 'OSTERN', 'MARTINI', 'NIKOLAUS'
-    active BOOLEAN DEFAULT TRUE
-);
+### Abbildung des Altbestands
 
--- Wöchentlicher Klassen-Status (Fleischpreis vs. Pokal)
-CREATE TABLE class_night_status (
-    id SERIAL PRIMARY KEY,
-    competition_id INT REFERENCES competitions(id),
-    category_class VARCHAR(50) NOT NULL,
-    fleischpreis_active BOOLEAN DEFAULT TRUE, -- TRUE = Schuss 1-20 Fleischpreis, FALSE = Schuss 1-20 Pokal
-    fleischpreis_remaining_prizes INT DEFAULT 0
-);
+Der SQLite-Export enthält unter anderem:
 
--- Verarbeitete Schussergebnisse (Aggregiert & Einzelschuss)
-CREATE TABLE processed_shots (
-    id SERIAL PRIMARY KEY,
-    member_id INT REFERENCES members(id),
-    competition_id INT REFERENCES competitions(id),
-    series_number INT NOT NULL,         -- Serie 1, 2, 3, 4
-    shot_number INT NOT NULL,           -- Schuss 1 bis 40
-    ring_value INT NOT NULL,            -- Ganze Ringe
-    tenth_value NUMERIC(4,1) NOT NULL,  -- Zehntelwertung (z.B. 102.7)
-    teiler NUMERIC(6,1) NOT NULL,       -- Teiler / Tiefschuss
-    target_category VARCHAR(50) NOT NULL, -- 'FLEISCHPREIS', 'POKAL', 'GAUDI', 'SONDER'
-    is_practice BOOLEAN DEFAULT FALSE,  -- Probe- vs. Wertungsschuss
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+- **Stamm/Konfiguration:** `Schuetzen`, `Schuetzenliste`, `Schuetzenklassen`, `Saison`.
+- **Betrieb:** `Schiesstage`, `LG_Einteilung_Klassen`, `LP_Einteilung_Klassen`.
+- **Ergebnisse:** `LG_Ergebnisse_Schiesstag`, `LP_Ergebnisse_Schiesstag`, `LG_Serien`, `LP_Serien`, `LG_Jahresschnitt`, `LP_Jahresschnitt`.
+- **Auswertungen:** Geldpreis-, Fleischpreis-, Vereinsmeister-, Königsschießen-, Schmankerlpokal-, Pokalteiler- und Wanderpokal-Tabellen sowie `LG_Schuetzen_Bericht`/`LP_Schuetzen_Bericht`.
 
--- Zweier-Teams für Er-und-Sie-Schießen
-CREATE TABLE couples_competition (
-    id SERIAL PRIMARY KEY,
-    competition_id INT REFERENCES competitions(id),
-    member_male_id INT REFERENCES members(id),
-    member_female_id INT REFERENCES members(id),
-    total_score NUMERIC(6,1),
-    combined_teiler NUMERIC(6,1)
-);
+Die Legacy-Tabellen speichern LG und LP überwiegend getrennt. `LG_Serien` enthält bis zu zehn Schüsse je Serie und `LP_Serien` fünf; Schussringe, Teiler und teilweise X-/Y-Koordinaten sind vorhanden. Das Altformat belegt nicht automatisch, dass WMK dieselben Felder, Schlüssel oder Schussstatuswerte liefert. Ein vereinheitlichtes Zielschema ist zulässig, sofern Disziplin und historische Ausgabe getrennt reproduzierbar bleiben.
 
-```
+## 5. Integrationsverträge für Schussergebnisse
 
----
+Ein kanonischer Schussdatensatz soll, soweit die Quelle diese Angaben liefert, enthalten:
 
-## 6. Meilensteine & Roadmap
+- externe Schützenkennung und aufgelöste interne Mitglieds-ID;
+- Saison/Schießtag oder eine vorläufige Wettkampfzuordnung;
+- Disziplin, Serie und Schussnummer;
+- Ringwert und Zehntelwert als getrennte fachliche Werte;
+- Teiler, falls geliefert;
+- Probe-/Wertungsschuss-Kennzeichnung, falls geliefert;
+- optionale Quellzeit und Koordinaten;
+- Importlauf und unveränderte Quellreferenz.
 
-1. **Phase 1: Vorbereitung & Import-Verifikation**
-* Analyse realer WM-Shot `.wmk`-Dateien sowie OpticScore XML-Exporte im Test-Wettkampf.
-* Aufbau der Entwicklungs-Pipeline (Python / FastAPI / Angular).
+Die Integrationsprüfung muss klären, wie Gesamtwerte aus Quellwerten gebildet werden und ob die Quelldaten Serien oder Einzelresultate eindeutig markieren. Zeiten, Koordinaten oder Schussstatus sind optional, bis ein realer Export sie bestätigt. Nicht vorhandene Felder dürfen nicht als Pflichtwerte ohne fachliche Begründung modelliert werden.
 
+## 6. Wertung, Korrektur und Reproduzierbarkeit
 
-2. **Phase 2: Ingestion & Business Logic**
-* Implementierung der File-Parser (`.wmk` / XML).
-* Entwicklung der dynamischen Klassen- & Kontingent-Steuerung für Schuss 1–20.
-* Entwicklung des Sonder-Schießspiele-Moduls (Er-und-Sie, Ostern, Martini, Nikolaus).
+- Rohdaten und berechnete Ranglisten/Preisresultate sind logisch unterscheidbar.
+- Fachregeln erhalten eine Version; jeder Wertungslauf verweist auf die verwendete Version und Eingangsdaten.
+- Eine Korrektur invalidiert oder markiert betroffene Auswertungen als veraltet und ermöglicht eine explizite Neuberechnung.
+- Neuberechnungen überschreiben Ergebnisse nicht unprotokolliert. Vorher-/Nachher-Ergebnis und Auslöser bleiben nachvollziehbar.
+- Tages- und Saisonberichte werden aus gespeicherten und validierten Daten erzeugt. Exportpfad und Dateinamen sind konfigurierbar.
 
+## 7. Betrieb, Sicherheit und Netzwerkgrenzen
 
-3. **Phase 3: Angular Frontend**
-* Dashboard für Schießleiter (Standbelegung, Kontingent-Schalter pro Klasse, Siegerlisten).
-* Live-Anzeige und Aushang-Export (PDF/Druck).
+- Backend: Linux-Host; bestehender PoC nutzt FastAPI/Python. Frontend: Angular-Webanwendung.
+- Datenbank, Berichtsablage und Backup-Ziele werden konfiguriert, nicht in Quellcode oder Benutzerpfade eingebaut.
+- Der externe `.wmk`-Zugriff erfolgt im MVP als kontrollierter Offline-Dateiimport. Schreibender Zugriff auf WM-Shot oder DISAG ist nicht vorgesehen.
+- Kein permanenter UDP-/WebSocket-Listener und kein Polling der DISAG-Datenbank ohne beschlossenen Echtzeitbedarf und bestätigte Schnittstelle.
+- Personenbezogene Daten sind nach Rollen zu schützen. Datenexporte und Backups sind in Zugriff und Aufbewahrung einzubeziehen.
+- Backup umfasst einen dokumentierten Restore-Test; Archivdateien allein gelten nicht als abgenommene Wiederherstellung.
 
+## 8. Qualitäts- und Architekturentscheidungen
 
-4. **Phase 4: Mobile App Target (Android)**
-* Integration von Capacitor in Angular.
-* Bereitstellung und Test des Android-APKs für Schützen.
+Vor Umsetzung sind zu bestätigen:
 
-## Netztopologie & Systemgrenzen
+1. Datenbankprodukt und Mehrbenutzer-/Deploymentmodell.
+2. Fachliche Formeln, Gleichstände, Jugend-/Klassenregeln und Saisonabschlussbedingungen.
+3. Minimal erforderliche Einzelschussfelder und Umgang mit nicht gelieferten Probe-/Wertungsschussmarkierungen.
+4. Verfügbarkeit und Versionen von WMK bzw. XML im realen Schießbetrieb.
+5. Benutzerrollen, Aufbewahrung und Umfang des Auditprotokolls.
 
-* **Netzwerk-Integration:** Der Linux-Host ist per Ethernet am Vereins-Switch (DHCP-Router) angebunden und greift per SMB-Mount (Samba) lesend auf den Freigabeordner der WM-Shot `.wmk`-Dateien auf dem Windows Central PC zu.
-* **Stand-Tablets (TabLock):** Werden rein als Steuergeräte für die DISAG OpticScore SIZ/Messrahmen genutzt. Kein direkter Zugriff durch TruderRinge.
-* **Anzeigen-Verteilung:** DISAG Visualisierung steuert die Stand-Trefferbilder auf Beamern; TruderRinge stellt das Schießleiter-Dashboard und dynamische Zwischenstände (Fleischpreis, Schießspiele) per Angular Web-App bereit.
+Abnahmekriterien sind die Datenmigration gegen Referenzberichte, reproduzierbare LG-/LP-Wertungen, explizite Importvalidierung, stabile Korrektur-/Neuberechnungshistorie und ein erfolgreich ausgeführter Restore-Test.
+
+## 9. Nicht Bestandteil der bestätigten Baseline
+
+Wochenweise Regelsets, automatische Kontingentumschaltung für Schuss 1–20, DISAG-Standbelegung, Best-of-N/Streichergebnisse, Live-Poller, Capacitor/Android und Er-und-Sie-/Oster-/Martini-/Nikolauswettbewerbe bleiben optionale Erweiterungen. Ihre Aufnahme erfordert eine fachliche Entscheidung und eigene Abnahmekriterien.
